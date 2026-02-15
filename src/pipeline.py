@@ -1,0 +1,171 @@
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from typing import Literal, List
+
+logger = logging.getLogger(__name__)
+
+from chunking import split_document_into_chunks
+from fidelity import FidelityVerifier, NoOpVerifier
+from model import RewriteModel
+from prompting import RewriteRequest
+from tokenizer import Tokenizer, take_last_tokens
+
+
+@dataclass(frozen=True)
+class PipelineConfig:
+    chunk_tokens: int = 256
+    overlap_tokens: int = 64
+    prefix_window_tokens: int = 1024
+    fidelity_threshold: float = 0.85
+    max_retries: int = 2
+    anchor_tokens: int = 256
+    max_stitch_overlap_tokens: int = 96
+    global_anchor_mode: Literal["none", "head"] = "head"
+    default_style_instruction: str = "neutral factual rewrite"
+
+
+def _longest_overlap(
+    left_tokens: List[str],
+    right_tokens: List[str],
+    max_overlap_tokens: int,
+) -> int:
+    max_size = min(len(left_tokens), len(right_tokens), max_overlap_tokens)
+    for size in range(max_size, 0, -1):
+        if left_tokens[-size:] == right_tokens[:size]:
+            return size
+    return 0
+
+
+def stitch_rewritten_chunks(
+    chunks: List[str],
+    tokenizer: Tokenizer,
+    max_overlap_tokens: int = 96,
+) -> str:
+    if not chunks:
+        return ""
+
+    merged_tokens = tokenizer.encode(chunks[0])
+    for chunk in chunks[1:]:
+        right_tokens = tokenizer.encode(chunk)
+        overlap = _longest_overlap(merged_tokens, right_tokens, max_overlap_tokens)
+        merged_tokens.extend(right_tokens[overlap:])
+    return tokenizer.decode(merged_tokens).strip()
+
+
+class ChunkWiseRephrasePipeline:
+    def __init__(
+        self,
+        model: RewriteModel,
+        tokenizer: Tokenizer,
+        config: PipelineConfig | None = None,
+        verifier: FidelityVerifier | None = None,
+    ) -> None:
+        self._model = model
+        self._tokenizer = tokenizer
+        self._config = config or PipelineConfig()
+        self._verifier = verifier or NoOpVerifier()
+
+    def run(self, text: str, style_instruction: str = "") -> str:
+        if not text.strip():
+            return ""
+
+        chunks = split_document_into_chunks(
+            text=text,
+            tokenizer=self._tokenizer,
+            chunk_tokens=self._config.chunk_tokens,
+            overlap_tokens=self._config.overlap_tokens,
+        )
+        logger.info(f"Document split into {len(chunks)} chunk(s)")
+        for i, chk in enumerate(chunks):
+            chk_tokens = len(self._tokenizer.encode(chk))
+            logger.debug(f"  Chunk {i+1}: {len(chk)} chars, ~{chk_tokens} tokens")
+
+        global_anchor = self._build_global_anchor(text)
+        if global_anchor:
+            logger.info(f"Global anchor built: {len(global_anchor)} chars")
+        rewritten_chunks: List[str] = []
+
+        for idx, chunk in enumerate(chunks):
+            chunk_num = idx + 1
+            logger.info(f"Processing chunk {chunk_num}/{len(chunks)}...")
+            generated_prefix = self._build_generated_prefix(rewritten_chunks)
+            if generated_prefix:
+                prefix_tokens = len(self._tokenizer.encode(generated_prefix))
+                logger.debug(f"  Generated prefix: {len(generated_prefix)} chars, ~{prefix_tokens} tokens")
+            rewritten = self._rewrite_chunk_with_retries(
+                chunk=chunk,
+                generated_prefix=generated_prefix,
+                global_anchor=global_anchor,
+                style_instruction=style_instruction,
+                chunk_num=chunk_num,
+                total_chunks=len(chunks),
+            )
+            rewritten_chunks.append(rewritten)
+            logger.info(f"  Chunk {chunk_num} done: {len(chunk)} -> {len(rewritten)} chars")
+
+        return stitch_rewritten_chunks(
+            chunks=rewritten_chunks,
+            tokenizer=self._tokenizer,
+            max_overlap_tokens=self._config.max_stitch_overlap_tokens,
+        )
+
+    def _build_generated_prefix(self, rewritten_chunks: List[str]) -> str:
+        if not rewritten_chunks:
+            return ""
+        combined = " ".join(rewritten_chunks)
+        return take_last_tokens(
+            text=combined,
+            tokenizer=self._tokenizer,
+            max_tokens=self._config.prefix_window_tokens,
+        )
+
+    def _build_global_anchor(self, text: str) -> str:
+        if self._config.global_anchor_mode == "none":
+            return ""
+        tokens = self._tokenizer.encode(text)
+        return self._tokenizer.decode(tokens[: self._config.anchor_tokens])
+
+    def _rewrite_chunk_with_retries(
+        self,
+        chunk: str,
+        generated_prefix: str,
+        global_anchor: str,
+        style_instruction: str,
+        chunk_num: int = 0,
+        total_chunks: int = 0,
+    ) -> str:
+        best_candidate = ""
+        best_score = -1.0
+        instruction = style_instruction or self._config.default_style_instruction
+        retry_limit = max(self._config.max_retries, 1)
+        chunk_tokens = len(self._tokenizer.encode(chunk))
+
+        for retry_index in range(retry_limit):
+            logger.debug(f"  Chunk {chunk_num}: retry {retry_index + 1}/{retry_limit}")
+            request = RewriteRequest(
+                style_instruction=instruction,
+                global_anchor=global_anchor,
+                generated_prefix=generated_prefix,
+                current_chunk=chunk,
+                retry_index=retry_index,
+                strict_fidelity=retry_index > 0,
+            )
+            candidate = self._model.rewrite(request).strip()
+            if not candidate:
+                logger.warning(f"  Chunk {chunk_num}: model returned empty, using original")
+                candidate = chunk
+
+            score = self._verifier.score(chunk, candidate)
+            logger.debug(f"  Chunk {chunk_num}: fidelity score = {score:.3f}")
+            if score > best_score:
+                best_score = score
+                best_candidate = candidate
+            if score >= self._config.fidelity_threshold:
+                logger.info(f"  Chunk {chunk_num}: fidelity threshold met (score={score:.3f})")
+                return candidate
+
+        if retry_limit > 1:
+            logger.info(f"  Chunk {chunk_num}: using best candidate (score={best_score:.3f})")
+        return best_candidate or chunk
