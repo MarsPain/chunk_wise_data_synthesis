@@ -1,0 +1,262 @@
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from generation_prompting import (
+    render_consistency_prompt,
+    render_plan_prompt,
+    render_section_prompt,
+)
+from generation_quality import (
+    OutlineCoverageChecker,
+    RepetitionAndDriftChecker,
+    StrictConsistencyEditGuard,
+    TerminologyConsistencyChecker,
+)
+from generation_state import initialize_state, update_state
+from generation_types import (
+    GenerationConfig,
+    GenerationPlan,
+    GenerationResult,
+    GenerationState,
+    QualityReport,
+    SectionSpec,
+)
+from model import LLMModel, LLMRequest
+from tokenizer import Tokenizer, take_last_tokens
+
+logger = logging.getLogger(__name__)
+
+
+class ChunkWiseGenerationPipeline:
+    def __init__(
+        self,
+        model: LLMModel,
+        tokenizer: Tokenizer,
+        config: GenerationConfig | None = None,
+    ) -> None:
+        self._model = model
+        self._tokenizer = tokenizer
+        self._config = config or GenerationConfig()
+        self._coverage_checker = OutlineCoverageChecker()
+        self._terminology_checker = TerminologyConsistencyChecker()
+        self._repetition_drift_checker = RepetitionAndDriftChecker(
+            repetition_threshold=self._config.repetition_similarity_threshold,
+            drift_overlap_threshold=self._config.drift_overlap_threshold,
+        )
+        self._consistency_guard = StrictConsistencyEditGuard(
+            min_token_jaccard=self._config.consistency_guard_min_token_jaccard,
+            min_length_ratio=self._config.consistency_guard_min_length_ratio,
+            max_length_ratio=self._config.consistency_guard_max_length_ratio,
+            max_added_sentences=self._config.consistency_guard_max_added_sentences,
+        )
+
+    def run(
+        self,
+        topic: str = "",
+        objective: str = "",
+        target_tokens: int = 4000,
+        audience: str = "",
+        tone: str = "",
+        manual_plan: GenerationPlan | dict[str, Any] | str | None = None,
+    ) -> GenerationResult:
+        plan = self._resolve_plan(
+            topic=topic,
+            objective=objective,
+            target_tokens=target_tokens,
+            audience=audience,
+            tone=tone,
+            manual_plan=manual_plan,
+        )
+        state = initialize_state(plan)
+        quality_report = QualityReport()
+        section_outputs: list[str] = []
+
+        for index, section in enumerate(plan.sections):
+            logger.info(f"[Pipeline] Generating section {index + 1}/{len(plan.sections)}: '{section.title}'")
+            generated_prefix = self._build_recent_text(section_outputs)
+            prompt = render_section_prompt(
+                plan=plan,
+                state=state,
+                recent_text=generated_prefix,
+                section_spec=section,
+            )
+            prompt_len = len(prompt)
+            logger.info(f"[Pipeline] Section {index + 1} prompt: {prompt_len} chars, target_length={section.target_length}")
+
+            section_text = self._model.generate(
+                LLMRequest(task="section_generation", prompt=prompt)
+            ).strip()
+
+            actual_len = len(section_text)
+            if not section_text:
+                section_text = self._build_minimal_section(section)
+                quality_report.section_warnings.append(
+                    f"Section {index + 1} generated empty output; used key-point fallback."
+                )
+                logger.warning(f"[Pipeline] Section {index + 1}: empty output, using fallback ({len(section_text)} chars)")
+            else:
+                logger.info(f"[Pipeline] Section {index + 1} generated: {actual_len} chars")
+
+            length_warning = self._check_length(section=section, section_text=section_text)
+            if length_warning:
+                quality_report.section_warnings.append(length_warning)
+                logger.warning(f"[Pipeline] Section {index + 1} length warning: {length_warning}")
+
+            if section_outputs:
+                similarity = self._token_jaccard(section_outputs[-1], section_text)
+                if similarity >= self._config.repetition_similarity_threshold:
+                    quality_report.section_warnings.append(
+                        (
+                            f"Section {index + 1} is too similar to the previous section "
+                            f"(score={similarity:.2f})."
+                        )
+                    )
+                    logger.warning(f"[Pipeline] Section {index + 1} repetition warning: similarity={similarity:.2f}")
+
+            section_outputs.append(section_text)
+            state = update_state(
+                state=state,
+                plan=plan,
+                section_spec=section,
+                section_text=section_text,
+            )
+            logger.info(f"[Pipeline] Section {index + 1} done. State entities: {len(state.known_entities)}, covered_points: {len(state.covered_key_points)}")
+
+        draft_text = "\n\n".join(section_outputs).strip()
+        logger.info(f"[Pipeline] Draft complete: {len(draft_text)} chars from {len(section_outputs)} sections")
+
+        logger.info("[Pipeline] Running quality checks...")
+        quality_report.coverage_missing = self._coverage_checker.find_missing(
+            plan=plan,
+            text=draft_text,
+        )
+        quality_report.terminology_issues = self._terminology_checker.find_issues(
+            plan=plan,
+            text=draft_text,
+        )
+        repetition_issues, drift_issues = self._repetition_drift_checker.find_issues(
+            plan=plan,
+            section_outputs=section_outputs,
+        )
+        quality_report.repetition_issues = repetition_issues
+        quality_report.drift_issues = drift_issues
+        logger.info(f"[Pipeline] Quality check: missing={len(quality_report.coverage_missing)}, "
+                   f"terminology={len(quality_report.terminology_issues)}, "
+                   f"repetition={len(repetition_issues)}, drift={len(drift_issues)}")
+
+        final_text = draft_text
+        if self._config.consistency_pass_enabled and draft_text:
+            quality_report.consistency_pass_applied = True
+            logger.info("[Pipeline] Running consistency pass...")
+            consistency_prompt = render_consistency_prompt(
+                plan=plan,
+                state=state,
+                draft_text=draft_text,
+                quality_report=quality_report,
+            )
+            candidate = self._model.generate(
+                LLMRequest(task="consistency_pass", prompt=consistency_prompt)
+            )
+            final_text, used_fallback = self._consistency_guard.apply(
+                original_text=draft_text,
+                candidate_text=candidate,
+            )
+            quality_report.consistency_pass_used_fallback = used_fallback
+            if used_fallback:
+                logger.warning("[Pipeline] Consistency pass rejected, using draft text")
+            else:
+                logger.info("[Pipeline] Consistency pass applied successfully")
+
+        return GenerationResult(
+            final_text=final_text,
+            plan=plan,
+            section_outputs=section_outputs,
+            final_state=state,
+            qc_report=quality_report,
+        )
+
+    def _resolve_plan(
+        self,
+        topic: str,
+        objective: str,
+        target_tokens: int,
+        audience: str,
+        tone: str,
+        manual_plan: GenerationPlan | dict[str, Any] | str | None,
+    ) -> GenerationPlan:
+        if manual_plan is not None:
+            return self._coerce_plan(manual_plan)
+
+        topic_value = topic.strip()
+        objective_value = objective.strip()
+        if not topic_value or not objective_value:
+            raise ValueError("topic and objective are required when manual_plan is absent")
+
+        prompt = render_plan_prompt(
+            topic=topic_value,
+            objective=objective_value,
+            target_tokens=target_tokens,
+            audience=audience.strip(),
+            tone=tone.strip(),
+        )
+        raw_plan = self._model.generate(
+            LLMRequest(task="plan_generation", prompt=prompt)
+        )
+        logger.debug(f"Raw plan output from model:\n{raw_plan}")
+        try:
+            return GenerationPlan.from_json(raw_plan)
+        except ValueError as exc:
+            logger.error(f"Failed to parse plan: {exc}")
+            logger.error(f"Raw plan output:\n{raw_plan}")
+            raise
+
+    @staticmethod
+    def _coerce_plan(manual_plan: GenerationPlan | dict[str, Any] | str) -> GenerationPlan:
+        if isinstance(manual_plan, GenerationPlan):
+            manual_plan.validate()
+            return manual_plan
+        if isinstance(manual_plan, str):
+            return GenerationPlan.from_json(manual_plan)
+        if isinstance(manual_plan, dict):
+            return GenerationPlan.from_dict(manual_plan)
+        raise ValueError("manual_plan must be GenerationPlan, dict, or JSON string")
+
+    def _build_recent_text(self, section_outputs: list[str]) -> str:
+        if not section_outputs:
+            return ""
+        combined = " ".join(section_outputs)
+        return take_last_tokens(
+            text=combined,
+            tokenizer=self._tokenizer,
+            max_tokens=self._config.prefix_window_tokens,
+        )
+
+    def _build_minimal_section(self, section: SectionSpec) -> str:
+        parts = list(section.key_points)
+        for entity in section.required_entities:
+            if entity not in parts:
+                parts.append(entity)
+        return " ".join(parts).strip()
+
+    def _check_length(self, section: SectionSpec, section_text: str) -> str:
+        token_count = len(self._tokenizer.encode(section_text))
+        lower_bound = max(1, int(section.target_length * self._config.min_section_length_ratio))
+        upper_bound = max(lower_bound, int(section.target_length * self._config.max_section_length_ratio))
+        if token_count < lower_bound or token_count > upper_bound:
+            return (
+                f"Section '{section.title}' length {token_count} tokens is outside "
+                f"target range [{lower_bound}, {upper_bound}]."
+            )
+        return ""
+
+    def _token_jaccard(self, left_text: str, right_text: str) -> float:
+        left_tokens = set(self._tokenizer.encode(left_text))
+        right_tokens = set(self._tokenizer.encode(right_text))
+        if not left_tokens and not right_tokens:
+            return 1.0
+        if not left_tokens or not right_tokens:
+            return 0.0
+        return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+

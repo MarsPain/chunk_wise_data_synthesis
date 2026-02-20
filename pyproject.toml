@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chunk-wise-data-synthesis"
 version = "0.1.0"
-description = "Minimal chunk-wise autoregressive rephrasing pipeline."
+description = "Minimal chunk-wise autoregressive rephrasing and long-form generation pipelines."
 requires-python = ">=3.10"
 dependencies = [
   "openai>=1.40.0",
@@ -16,6 +16,11 @@ package-dir = {"" = "src"}
 py-modules = [
   "chunking",
   "fidelity",
+  "generation_pipeline",
+  "generation_prompting",
+  "generation_quality",
+  "generation_state",
+  "generation_types",
   "model",
   "openai_backend",
   "pipeline",

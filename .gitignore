@@ -1,4 +1,6 @@
 __pycache__
 .*/
+*.egg-info/
 docs/
 AGENTS.md
+tests/data/
