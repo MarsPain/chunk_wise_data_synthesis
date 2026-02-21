@@ -46,8 +46,8 @@ class PipelineTests(unittest.TestCase):
         tokenizer = WhitespaceTokenizer()
         model = ScriptedRewriteModel(outputs=["R0 R1 R2 R3", "R4 R5 R6 R7"])
         config = PipelineConfig(
-            chunk_tokens=4,
-            overlap_tokens=0,
+            chunk_size=4,
+            length_mode="token",
             prefix_window_tokens=16,
             fidelity_threshold=0.0,
             max_retries=1,
@@ -71,8 +71,8 @@ class PipelineTests(unittest.TestCase):
         tokenizer = WhitespaceTokenizer()
         model = ScriptedRewriteModel(outputs=["bad rewrite", "good rewrite"])
         config = PipelineConfig(
-            chunk_tokens=8,
-            overlap_tokens=0,
+            chunk_size=8,
+            length_mode="token",
             prefix_window_tokens=8,
             fidelity_threshold=0.8,
             max_retries=2,

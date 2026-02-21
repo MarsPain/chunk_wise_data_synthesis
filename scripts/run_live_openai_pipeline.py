@@ -58,8 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="Rewrite for clarity while preserving all facts, numbers, and named entities.",
         help="Style instruction for rephrasing.",
     )
-    parser.add_argument("--chunk-tokens", type=int, default=80)
-    parser.add_argument("--overlap-tokens", type=int, default=16)
+    parser.add_argument("--chunk-size", type=int, default=80,
+                        help="Chunk size limit (in tokens or chars, see --length-mode).")
+    parser.add_argument("--length-mode", type=str, default="auto",
+                        choices=["auto", "token", "char"],
+                        help="Length calculation mode: auto (detect script), token, or char.")
     parser.add_argument("--prefix-window-tokens", type=int, default=160)
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--top-p", type=float, default=0.9)
@@ -92,8 +95,8 @@ def main() -> None:
     logger.info(f"Input text length: {len(source_text)} chars")
 
     logger.info("Configuration:")
-    logger.info(f"  chunk_tokens={args.chunk_tokens}")
-    logger.info(f"  overlap_tokens={args.overlap_tokens}")
+    logger.info(f"  chunk_size={args.chunk_size}")
+    logger.info(f"  length_mode={args.length_mode}")
     logger.info(f"  prefix_window_tokens={args.prefix_window_tokens}")
     logger.info(f"  temperature={args.temperature}")
     logger.info(f"  top_p={args.top_p}")
@@ -114,8 +117,8 @@ def main() -> None:
         model=model,
         tokenizer=WhitespaceTokenizer(),
         config=PipelineConfig(
-            chunk_tokens=args.chunk_tokens,
-            overlap_tokens=args.overlap_tokens,
+            chunk_size=args.chunk_size,
+            length_mode=args.length_mode,
             prefix_window_tokens=args.prefix_window_tokens,
             fidelity_threshold=0.0,
             max_retries=1,

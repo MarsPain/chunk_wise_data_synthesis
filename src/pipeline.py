@@ -15,8 +15,10 @@ from tokenizer import Tokenizer, take_last_tokens
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    chunk_tokens: int = 256
-    overlap_tokens: int = 64
+    chunk_size: int = 1024  # 长度限制（token数或字符数，根据 length_mode）
+    length_mode: Literal["auto", "token", "char"] = "auto"  # 长度计算模式
+    enable_line_fallback: bool = True  # 超长时启用单行分割
+    enable_char_fallback: bool = True  # 单行超长时启用字符分割
     prefix_window_tokens: int = 1024
     fidelity_threshold: float = 0.85
     max_retries: int = 2
@@ -24,6 +26,15 @@ class PipelineConfig:
     max_stitch_overlap_tokens: int = 96
     global_anchor_mode: Literal["none", "head"] = "head"
     default_style_instruction: str = "neutral factual rewrite"
+    
+    # 兼容旧参数名
+    @property
+    def chunk_tokens(self) -> int:
+        return self.chunk_size
+    
+    @property
+    def overlap_tokens(self) -> int:
+        return 0  # 不再使用 token 级 overlap
 
 
 def _longest_overlap(
@@ -74,8 +85,10 @@ class ChunkWiseRephrasePipeline:
         chunks = split_document_into_chunks(
             text=text,
             tokenizer=self._tokenizer,
-            chunk_tokens=self._config.chunk_tokens,
-            overlap_tokens=self._config.overlap_tokens,
+            chunk_size=self._config.chunk_size,
+            length_mode=self._config.length_mode,
+            enable_line_fallback=self._config.enable_line_fallback,
+            enable_char_fallback=self._config.enable_char_fallback,
         )
         logger.info(f"Document split into {len(chunks)} chunk(s)")
         for i, chk in enumerate(chunks):
