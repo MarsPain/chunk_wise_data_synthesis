@@ -2,7 +2,7 @@ import logging
 import os
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from path_setup import ensure_src_path
 
@@ -13,7 +13,9 @@ from openai_backend import (
     DEFAULT_MODEL,
     OpenAIBackendConfig,
     OpenAIRewriteModel,
+    OpenAILLMModel,
 )
+from model import LLMRequest
 from prompting import RewriteRequest
 
 # 配置日志
@@ -167,6 +169,218 @@ class OpenAIBackendTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "LLM_MODEL"):
             _ = model.rewrite(request)
         logger.info("=== 测试通过 ===\n")
+
+
+class _FakeCompletionsWithErrors:
+    """Mock completions that raises specific errors on each call."""
+    def __init__(self, errors: list[Exception]) -> None:
+        self._errors = errors
+        self._call_count = 0
+    
+    def create(self, **kwargs):
+        if self._call_count < len(self._errors):
+            error = self._errors[self._call_count]
+            self._call_count += 1
+            raise error
+        # Return success on the call after errors are exhausted
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=" success "))]
+        )
+
+
+class _FakeRateLimitError(Exception):
+    """Fake RateLimitError for testing."""
+    pass
+
+
+class _FakeAPIStatusError(Exception):
+    """Fake APIStatusError with status_code for testing.
+    
+    Mimics openai.APIStatusError which has status_code attribute.
+    """
+    def __init__(self, message: str, status_code: int = 500):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class _FakeTimeoutError(Exception):
+    """Fake APITimeoutError for testing."""
+    pass
+
+
+def _make_fake_status_error(message: str, status_code: int) -> Exception:
+    """Create a fake API status error with status_code attribute."""
+    return _FakeAPIStatusError(message, status_code)
+
+
+class OpenAIBackendRetryTests(unittest.TestCase):
+    """Test status code-based retry logic."""
+
+    def test_429_rate_limit_retries_with_exponential_backoff(self) -> None:
+        """429 errors should be retried with exponential backoff."""
+        logger.info("=== 测试: 429 错误指数退避重试 ===")
+        
+        # Mock errors with 429 status code
+        fake_errors = [
+            _make_fake_status_error("Rate limit exceeded", 429),
+            _make_fake_status_error("Rate limit exceeded", 429),
+        ]
+        fake_completions = _FakeCompletionsWithErrors(fake_errors)
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+        
+        model = OpenAILLMModel(
+            config=OpenAIBackendConfig(api_key="test-key"),
+            client=fake_client,
+        )
+        
+        # Test with short delays for fast test
+        result = model._generate_with_retry(
+            {"model": "test", "messages": [{"role": "user", "content": "hello"}]},
+            LLMRequest(task="test", prompt="hello"),
+            max_retries=5,
+            base_delay=0.01,  # Very short for fast test
+        )
+        
+        self.assertEqual(result, "success")
+        self.assertEqual(fake_completions._call_count, 2)  # 2 retries before success
+        logger.info("=== 测试通过: 429 正确重试 ===\n")
+
+    def test_5xx_server_error_retries_then_succeeds(self) -> None:
+        """5xx errors should be retried and eventually succeed."""
+        logger.info("=== 测试: 5xx 错误重试后成功 ===")
+        
+        fake_errors = [
+            _make_fake_status_error("Service unavailable", 503),
+        ]
+        fake_completions = _FakeCompletionsWithErrors(fake_errors)
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+        
+        model = OpenAILLMModel(
+            config=OpenAIBackendConfig(api_key="test-key"),
+            client=fake_client,
+        )
+        
+        result = model._generate_with_retry(
+            {"model": "test", "messages": [{"role": "user", "content": "hello"}]},
+            LLMRequest(task="test", prompt="hello"),
+            max_retries=5,
+            base_delay=0.01,
+        )
+        
+        self.assertEqual(result, "success")
+        self.assertEqual(fake_completions._call_count, 1)  # 1 retry before success
+        logger.info("=== 测试通过: 5xx 重试后成功 ===\n")
+
+    def test_401_unauthorized_fails_fast_with_readable_message(self) -> None:
+        """401 errors should fail immediately with a helpful message."""
+        logger.info("=== 测试: 401 错误快速失败并返回可读信息 ===")
+        
+        fake_completions = _FakeCompletionsWithErrors([
+            _make_fake_status_error("Invalid API key", 401),
+        ])
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+        
+        model = OpenAILLMModel(
+            config=OpenAIBackendConfig(api_key="test-key"),
+            client=fake_client,
+        )
+        
+        with self.assertRaises(ValueError) as cm:
+            model._generate_with_retry(
+                {"model": "test", "messages": [{"role": "user", "content": "hello"}]},
+                LLMRequest(task="test", prompt="hello"),
+            )
+        
+        error_msg = str(cm.exception)
+        self.assertIn("401", error_msg)
+        self.assertIn("API Key", error_msg)
+        # Should only be called once (no retries for 4xx)
+        self.assertEqual(fake_completions._call_count, 1)
+        logger.info(f"捕获到预期错误: {error_msg[:100]}...")
+        logger.info("=== 测试通过: 401 快速失败 ===\n")
+
+    def test_403_forbidden_fails_fast(self) -> None:
+        """403 errors should fail immediately with a helpful message."""
+        logger.info("=== 测试: 403 错误快速失败 ===")
+        
+        fake_completions = _FakeCompletionsWithErrors([
+            _make_fake_status_error("Access denied", 403),
+        ])
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+        
+        model = OpenAILLMModel(
+            config=OpenAIBackendConfig(api_key="test-key"),
+            client=fake_client,
+        )
+        
+        with self.assertRaises(ValueError) as cm:
+            model._generate_with_retry(
+                {"model": "test", "messages": [{"role": "user", "content": "hello"}]},
+                LLMRequest(task="test", prompt="hello"),
+            )
+        
+        error_msg = str(cm.exception)
+        self.assertIn("403", error_msg)
+        self.assertEqual(fake_completions._call_count, 1)
+        logger.info(f"捕获到预期错误: {error_msg[:100]}...")
+        logger.info("=== 测试通过: 403 快速失败 ===\n")
+
+    def test_404_not_found_fails_fast(self) -> None:
+        """404 errors should fail immediately with helpful message."""
+        logger.info("=== 测试: 404 错误快速失败 ===")
+        
+        fake_completions = _FakeCompletionsWithErrors([
+            _make_fake_status_error("Model not found", 404),
+        ])
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+        
+        model = OpenAILLMModel(
+            config=OpenAIBackendConfig(api_key="test-key"),
+            client=fake_client,
+        )
+        
+        with self.assertRaises(ValueError) as cm:
+            model._generate_with_retry(
+                {"model": "test", "messages": [{"role": "user", "content": "hello"}]},
+                LLMRequest(task="test", prompt="hello"),
+            )
+        
+        error_msg = str(cm.exception)
+        self.assertIn("404", error_msg)
+        self.assertEqual(fake_completions._call_count, 1)
+        logger.info(f"捕获到预期错误: {error_msg[:100]}...")
+        logger.info("=== 测试通过: 404 快速失败 ===\n")
+
+    def test_5xx_exhausts_retries_then_fails(self) -> None:
+        """5xx errors that persist should eventually fail."""
+        logger.info("=== 测试: 持续的 5xx 错误最终失败 ===")
+        
+        # All calls return 503
+        fake_completions = MagicMock()
+        fake_completions.create.side_effect = _make_fake_status_error(
+            "Service unavailable", 503
+        )
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+        
+        model = OpenAILLMModel(
+            config=OpenAIBackendConfig(api_key="test-key"),
+            client=fake_client,
+        )
+        
+        with self.assertRaises(ValueError) as cm:
+            model._generate_with_retry(
+                {"model": "test", "messages": [{"role": "user", "content": "hello"}]},
+                LLMRequest(task="test", prompt="hello"),
+                max_retries=2,
+                base_delay=0.01,  # Very short delay for fast test
+            )
+        
+        error_msg = str(cm.exception)
+        self.assertIn("503", error_msg)
+        # Should have been called max_retries times
+        self.assertEqual(fake_completions.create.call_count, 2)
+        logger.info(f"捕获到预期错误: {error_msg[:100]}...")
+        logger.info("=== 测试通过: 5xx 耗尽重试后失败 ===\n")
 
 
 if __name__ == "__main__":
