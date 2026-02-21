@@ -250,6 +250,8 @@ class QualityReport:
     repetition_issues: list[str] = field(default_factory=list)
     drift_issues: list[str] = field(default_factory=list)
     section_warnings: list[str] = field(default_factory=list)
+    entity_missing: list[str] = field(default_factory=list)
+    numeric_fact_issues: list[str] = field(default_factory=list)
     consistency_pass_applied: bool = False
     consistency_pass_used_fallback: bool = False
 
@@ -260,6 +262,15 @@ class QualityReport:
                 bool(self.terminology_issues),
                 bool(self.repetition_issues),
                 bool(self.drift_issues),
+            ]
+        )
+
+    def has_critical_issues(self) -> bool:
+        """Critical issues include missing required entities and numeric fact errors."""
+        return any(
+            [
+                bool(self.entity_missing),
+                bool(self.numeric_fact_issues),
             ]
         )
 

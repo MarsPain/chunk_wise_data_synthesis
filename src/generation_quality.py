@@ -3,7 +3,121 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from generation_types import GenerationPlan
+# Import core numeric fact checking logic from fidelity module
+from fidelity import NumericFactChecker as _NumericFactChecker, NumericFact
+from generation_types import GenerationPlan, SectionSpec
+
+
+class EntityPresenceChecker:
+    """Ensures all required_entities from SectionSpec are present in generated text.
+    
+    Performs both exact and fuzzy matching to handle minor variations.
+    """
+    
+    def find_missing(
+        self,
+        plan: GenerationPlan,
+        section_outputs: list[str],
+    ) -> list[str]:
+        """Return list of missing entity warnings for each section.
+        
+        Args:
+            plan: The generation plan containing section specifications.
+            section_outputs: List of generated text for each section.
+            
+        Returns:
+            List of warning strings describing missing entities.
+        """
+        missing: list[str] = []
+        
+        for idx, (section, text) in enumerate(zip(plan.sections, section_outputs)):
+            section_num = idx + 1
+            text_lower = text.lower()
+            
+            for entity in section.required_entities:
+                if not self._entity_present(entity.lower(), text_lower):
+                    missing.append(
+                        f"Section {section_num} ('{section.title}') missing required entity: '{entity}'"
+                    )
+        
+        return missing
+    
+    def _entity_present(self, entity: str, text: str) -> bool:
+        """Check if entity is present in text with flexible matching."""
+        # Exact match
+        if entity in text:
+            return True
+        
+        # Hyphen/underscore variants: "state table" -> "state-table", "state_table"
+        if entity.replace(" ", "-") in text:
+            return True
+        if entity.replace(" ", "_") in text:
+            return True
+        
+        # Handle multi-word entities with word boundary check
+        words = entity.split()
+        if len(words) > 1:
+            # Check if all words appear in order within a window
+            return self._words_in_order(words, text)
+        
+        return False
+    
+    def _words_in_order(self, words: list[str], text: str) -> bool:
+        """Check if all words appear in order within the text."""
+        text_words = text.split()
+        word_idx = 0
+        
+        for tw in text_words:
+            # Remove punctuation for comparison
+            tw_clean = tw.strip(".,;:!?()[]{}\"'")
+            if tw_clean == words[word_idx]:
+                word_idx += 1
+                if word_idx >= len(words):
+                    return True
+        
+        return False
+
+
+class NumericFactChecker:
+    """Wrapper around fidelity.NumericFactChecker providing detailed context reports.
+    
+    This class wraps the core numeric fact checking logic from fidelity.py and
+    provides Generation Pipeline-specific formatting with context information.
+    
+    For Rephrase Pipeline, use fidelity.NumericFactChecker directly.
+    """
+    
+    def __init__(self, context_window: int = 30) -> None:
+        """Initialize checker.
+        
+        Args:
+            context_window: Number of characters before/after the match for context.
+        """
+        self._core_checker = _NumericFactChecker(context_window=context_window)
+    
+    def find_missing(self, source_text: str, generated_text: str) -> list[str]:
+        """Find numeric facts present in source but missing/altered in generated text.
+        
+        Args:
+            source_text: The original/reference text.
+            generated_text: The generated text to check.
+            
+        Returns:
+            List of warning strings describing missing numeric facts with context.
+        """
+        # Delegate to core checker
+        missing_facts = self._core_checker.find_missing(source_text, generated_text)
+        
+        # Format with context for Generation Pipeline reports
+        formatted_issues: list[str] = []
+        for fact in missing_facts:
+            formatted_issues.append(
+                f"{fact.fact_type.capitalize()} '{fact.value}' may be missing "
+                f"(was in: '...{fact.context}...')"
+            )
+        
+        return formatted_issues
+
 
 _WORD_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 
@@ -148,4 +262,3 @@ class StrictConsistencyEditGuard:
             return original, True
 
         return candidate, False
-

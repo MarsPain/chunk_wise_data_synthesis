@@ -9,6 +9,8 @@ from generation_prompting import (
     render_section_prompt,
 )
 from generation_quality import (
+    EntityPresenceChecker,
+    NumericFactChecker,
     OutlineCoverageChecker,
     RepetitionAndDriftChecker,
     StrictConsistencyEditGuard,
@@ -41,6 +43,8 @@ class ChunkWiseGenerationPipeline:
         self._config = config or GenerationConfig()
         self._coverage_checker = OutlineCoverageChecker()
         self._terminology_checker = TerminologyConsistencyChecker()
+        self._entity_checker = EntityPresenceChecker()
+        self._numeric_checker = NumericFactChecker()
         self._repetition_drift_checker = RepetitionAndDriftChecker(
             repetition_threshold=self._config.repetition_similarity_threshold,
             drift_overlap_threshold=self._config.drift_overlap_threshold,
@@ -136,6 +140,10 @@ class ChunkWiseGenerationPipeline:
             plan=plan,
             text=draft_text,
         )
+        quality_report.entity_missing = self._entity_checker.find_missing(
+            plan=plan,
+            section_outputs=section_outputs,
+        )
         repetition_issues, drift_issues = self._repetition_drift_checker.find_issues(
             plan=plan,
             section_outputs=section_outputs,
@@ -144,7 +152,11 @@ class ChunkWiseGenerationPipeline:
         quality_report.drift_issues = drift_issues
         logger.info(f"[Pipeline] Quality check: missing={len(quality_report.coverage_missing)}, "
                    f"terminology={len(quality_report.terminology_issues)}, "
+                   f"entity_missing={len(quality_report.entity_missing)}, "
                    f"repetition={len(repetition_issues)}, drift={len(drift_issues)}")
+        if quality_report.entity_missing:
+            for warning in quality_report.entity_missing:
+                logger.warning(f"[Pipeline] Entity check: {warning}")
 
         final_text = draft_text
         if self._config.consistency_pass_enabled and draft_text:

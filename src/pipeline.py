@@ -138,6 +138,7 @@ class ChunkWiseRephrasePipeline:
     ) -> str:
         best_candidate = ""
         best_score = -1.0
+        best_issues: list[str] = []
         instruction = style_instruction or self._config.default_style_instruction
         retry_limit = max(self._config.max_retries, 1)
         chunk_tokens = len(self._tokenizer.encode(chunk))
@@ -158,14 +159,25 @@ class ChunkWiseRephrasePipeline:
                 candidate = chunk
 
             score = self._verifier.score(chunk, candidate)
+            issues = self._verifier.get_issues(chunk, candidate)
             logger.debug(f"  Chunk {chunk_num}: fidelity score = {score:.3f}")
+            if issues:
+                logger.debug(f"  Chunk {chunk_num}: fidelity issues = {issues}")
+            
             if score > best_score:
                 best_score = score
                 best_candidate = candidate
+                best_issues = issues
             if score >= self._config.fidelity_threshold:
                 logger.info(f"  Chunk {chunk_num}: fidelity threshold met (score={score:.3f})")
+                if issues:
+                    for issue in issues:
+                        logger.warning(f"  Chunk {chunk_num}: fidelity issue - {issue}")
                 return candidate
 
         if retry_limit > 1:
             logger.info(f"  Chunk {chunk_num}: using best candidate (score={best_score:.3f})")
+        if best_issues:
+            for issue in best_issues:
+                logger.warning(f"  Chunk {chunk_num}: fidelity issue - {issue}")
         return best_candidate or chunk
