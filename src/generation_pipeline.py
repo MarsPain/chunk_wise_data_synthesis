@@ -7,6 +7,7 @@ from generation_prompting import (
     render_consistency_prompt,
     render_plan_prompt,
     render_section_prompt,
+    render_section_prompt_compressed,
     render_section_repair_prompt,
 )
 from generation_quality import (
@@ -407,13 +408,23 @@ class ChunkWiseGenerationPipeline:
             
             # Build appropriate prompt
             if retry == 0:
-                # First attempt: normal generation
-                prompt = render_section_prompt(
-                    plan=plan,
-                    state=state,
-                    recent_text=generated_prefix,
-                    section_spec=section,
-                )
+                # First attempt: normal generation (with optional compression)
+                if self._config.prompt_compression_enabled:
+                    prompt = render_section_prompt_compressed(
+                        plan=plan,
+                        state=state,
+                        section_spec=section,
+                        recent_text=generated_prefix,
+                        section_index=section_index,
+                        config=self._config,
+                    )
+                else:
+                    prompt = render_section_prompt(
+                        plan=plan,
+                        state=state,
+                        recent_text=generated_prefix,
+                        section_spec=section,
+                    )
             else:
                 # P1: Repair attempt with targeted guidance
                 prompt = render_section_repair_prompt(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from generation_types import GenerationPlan, GenerationState, QualityReport, SectionSpec
+from generation_types import GenerationConfig, GenerationPlan, GenerationState, QualityReport, SectionSpec
 
 
 def render_plan_prompt(
@@ -133,6 +133,117 @@ def render_consistency_prompt(
             "Output only the revised full text.",
         ]
     )
+
+
+# Prompt compression helpers
+
+def _summarize_covered_points(covered: list[str], max_items: int = 3) -> str:
+    """Summarize covered key points into a short string.
+    
+    Args:
+        covered: List of covered key points
+        max_items: Maximum number of recent items to show in detail
+        
+    Returns:
+        Summary string like "None yet" or "3 points total, recent: A; B; C"
+    """
+    if not covered:
+        return "None yet"
+    
+    if len(covered) <= max_items:
+        return "; ".join(covered)
+    
+    # Show total count and recent items
+    recent = covered[-max_items:]
+    return f"{len(covered)} points total, recent: " + "; ".join(recent)
+
+
+def render_section_prompt_compressed(
+    plan: GenerationPlan,
+    state: GenerationState,
+    section_spec: SectionSpec,
+    recent_text: str,
+    section_index: int,
+    config: GenerationConfig | None = None,
+) -> str:
+    """Render a compressed section prompt with minimal context injection.
+    
+    Optimizations:
+    1. Only includes current section spec, not all sections
+    2. Summarizes covered_key_points instead of listing all
+    3. Only shows remaining_key_points
+    4. Limits entities and timeline to recent entries
+    5. Includes upcoming section titles for coherence
+    
+    Args:
+        plan: The full generation plan
+        state: Current generation state
+        section_spec: The current section to generate
+        recent_text: Recently generated text for context
+        section_index: Index of current section (for upcoming preview)
+        config: Optional config for compression parameters
+        
+    Returns:
+        Compressed prompt string
+    """
+    if config is None:
+        config = GenerationConfig()
+    
+    # 1. Build compressed plan context (only essential info + current section)
+    upcoming_titles = [
+        s.title 
+        for s in plan.sections[section_index + 1:section_index + 1 + config.upcoming_sections_preview]
+    ]
+    
+    plan_context = {
+        "topic": plan.topic,
+        "objective": plan.objective,
+        "audience": plan.audience,
+        "tone": plan.tone,
+        "current_section": section_spec.to_dict(),
+        "upcoming_sections": upcoming_titles,
+        "terminology_preferences": plan.terminology_preferences,
+    }
+    
+    # 2. Build incremental state (compression key: summarize covered, show remaining)
+    covered_summary = _summarize_covered_points(
+        state.covered_key_points, 
+        max_items=config.max_covered_points_summary_items
+    )
+    total_points = len(state.covered_key_points) + len(state.remaining_key_points)
+    progress = f"{len(state.covered_key_points)}/{total_points}"
+    
+    # Limit entities and timeline to most recent entries
+    recent_entities = state.known_entities[-config.max_entities_in_prompt:] if state.known_entities else []
+    recent_timeline = state.timeline[-config.max_timeline_entries:] if state.timeline else []
+    
+    incremental_state = {
+        "known_entities": recent_entities,
+        "terminology_map": state.terminology_map,
+        "timeline": recent_timeline,
+        "progress": progress,
+        "covered_summary": covered_summary,
+        "remaining_points": state.remaining_key_points,  # Only show what's left
+    }
+    
+    return "\n\n".join([
+        "You are generating one section of a long article.",
+        "CRITICAL: Output ONLY the section body text. No thinking, no planning, no preamble.",
+        "Rules:",
+        "1) Follow the current section spec strictly.",
+        "2) Keep terminology consistent with known entities.",
+        "3) Cover all remaining points listed below.",
+        "4) Do not repeat content summarized in covered summary.",
+        "5) Maintain coherence with upcoming sections.",
+        "",
+        f"Plan context:\n{json.dumps(plan_context, ensure_ascii=False, indent=2)}",
+        "",
+        f"Incremental state (progress: {progress}):\n{json.dumps(incremental_state, ensure_ascii=False, indent=2)}",
+        "",
+        f"Recent generated text:\n{recent_text or '(none)'}",
+        "",
+        "Output only the current section body text.",
+    ])
 
 
 # P1: Repair prompts for different issue types

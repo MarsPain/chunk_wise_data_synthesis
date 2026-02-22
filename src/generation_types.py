@@ -321,3 +321,10 @@ class GenerationConfig:
     length_violation_penalty: float = 0.1
     repetition_penalty: float = 0.15
 
+    # Prompt compression configuration
+    prompt_compression_enabled: bool = True
+    max_covered_points_summary_items: int = 3
+    max_entities_in_prompt: int = 20
+    max_timeline_entries: int = 5
+    upcoming_sections_preview: int = 2
+
