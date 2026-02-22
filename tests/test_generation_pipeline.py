@@ -144,8 +144,13 @@ class GenerationPipelineTests(unittest.TestCase):
         plan = _build_manual_plan()
         model = ScriptedLLMModel(
             scripted_outputs=[
+                # Section 1 first attempt (missing 'global anchor', triggers retry)
                 "t0 t1 t2 t3 t4 t5 t6 t7",
+                # Section 1 repair attempt (still missing 'global anchor')
+                "t0 t1 t2 t3 t4 t5 t6 t7",
+                # Section 2 (contains 'state table')
                 "state table tracks entities",
+                # Consistency pass
                 "t0 t1 t2 t3 t4 t5 t6 t7 state table tracks entities",
             ]
         )
@@ -157,7 +162,7 @@ class GenerationPipelineTests(unittest.TestCase):
 
         _ = pipeline.run(manual_plan=plan)
 
-        second_prompt = model.calls[1].request.prompt
+        second_prompt = model.calls[2].request.prompt  # Section 2 call (after retry)
         self.assertIn("t4 t5 t6 t7", second_prompt)
         self.assertNotIn("t0 t1", second_prompt)
 

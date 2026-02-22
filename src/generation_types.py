@@ -96,6 +96,21 @@ def _extract_json_object(raw: str) -> str:
         except json.JSONDecodeError:
             pass  # Fall through to error
     
+    # Check if output appears truncated (starts with { but doesn't end with })
+    raw_stripped = raw.strip()
+    is_truncated = (
+        raw_stripped.startswith('{') 
+        and not raw_stripped.endswith('}')
+        and raw_stripped.count('{') > raw_stripped.count('}')
+    )
+    
+    if is_truncated:
+        raise ValueError(
+            f"model output appears to be truncated (incomplete JSON). "
+            f"This usually means the output exceeded max_tokens limit. "
+            f"Try increasing max_new_tokens. Raw output: {raw[:500]}"
+        )
+    
     raise ValueError(f"model output does not contain a valid JSON object. Raw output: {raw[:500]}")
 
 
@@ -296,4 +311,13 @@ class GenerationConfig:
     consistency_guard_min_length_ratio: float = 0.7
     consistency_guard_max_length_ratio: float = 1.3
     consistency_guard_max_added_sentences: int = 2
+
+    # Section retry configuration (P0)
+    max_section_retries: int = 2
+    section_quality_threshold: float = 0.8
+    retry_on_missing_entities: bool = True
+    retry_on_length_violation: bool = False
+    entity_missing_penalty: float = 0.2
+    length_violation_penalty: float = 0.1
+    repetition_penalty: float = 0.15
 

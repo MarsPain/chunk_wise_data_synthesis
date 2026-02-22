@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", type=str, default=None)
     parser.add_argument("--temperature", type=float, default=0.3)
     parser.add_argument("--top-p", type=float, default=0.9)
-    parser.add_argument("--max-new-tokens", type=int, default=4096)
+    parser.add_argument("--max-new-tokens", type=int, default=16384)
     parser.add_argument("--prefix-window-tokens", type=int, default=1200)
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument(
