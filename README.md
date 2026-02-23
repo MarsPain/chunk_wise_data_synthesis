@@ -2,18 +2,21 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-A minimal, test-covered implementation of chunk-wise long-text synthesis with two parallel pipelines inspired by Kimi-K2:
+A test-covered implementation of chunk-wise long-text synthesis with two parallel pipelines inspired by Kimi-K2:
 
 1. `ChunkWiseRephrasePipeline`: faithful chunk-wise autoregressive rephrasing.
 2. `ChunkWiseGenerationPipeline`: plan-driven chunk-wise autoregressive long-form generation.
 
 ## Features
 
-- Overlap-aware chunk splitting and stitching.
+- Hierarchical no-overlap chunk splitting with overlap-aware stitching.
 - Autoregressive generation with rolling prefix windows.
 - Parallel workflows for rephrase and pure generation.
-- Plan + state based long-form generation with consistency pass.
-- Pluggable quality/fidelity verification.
+- Rephrase retries with pluggable fidelity verification.
+- Generation section retries with issue-targeted repair prompts.
+- Optional prompt compression for long-context section generation.
+- Plan + state based long-form generation with consistency pass guard.
+- Built-in quality checks for coverage, terminology, repetition, drift, and required entities.
 - OpenAI-compatible backend with environment-based configuration.
 
 ## Project Layout
@@ -107,18 +110,60 @@ Environment variables:
 - `LLM_MODEL` (optional): override model ID.
 - `LLM_BASE_URL` (optional): override provider base URL.
 
-Current defaults in `/Users/H/Documents/workspace_python/chunk_wise_data_synthesis/src/openai_backend.py`:
+Current defaults in `src/openai_backend.py`:
 
 - `DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"`
 - `DEFAULT_MODEL = "stepfun/step-3.5-flash:free"`
 
-You can also override from script flags:
+Live rephrase script flags (`scripts/run_live_openai_pipeline.py`):
 
+- `--chunk-size`
+- `--length-mode` (`auto` / `token` / `char`)
+- `--prefix-window-tokens`
+- `--style`
 - `--model`
 - `--base-url`
 - `--temperature`
 - `--top-p`
 - `--max-new-tokens`
+- `--verbose`
+
+Live generation script flags (`scripts/run_live_openai_generation_pipeline.py`):
+
+- `--topic`
+- `--objective`
+- `--target-tokens`
+- `--audience`
+- `--tone`
+- `--manual-plan-path`
+- `--prefix-window-tokens`
+- `--disable-consistency-pass`
+- `--enable-reasoning`
+- `--model`
+- `--base-url`
+- `--temperature`
+- `--top-p`
+- `--max-new-tokens`
+- `--verbose`
+
+Key rephrase pipeline config (`PipelineConfig` in `src/pipeline.py`):
+
+- `chunk_size`
+- `length_mode`
+- `prefix_window_tokens`
+- `max_retries`
+- `fidelity_threshold`
+- `max_stitch_overlap_tokens`
+- `global_anchor_mode`
+
+Key generation pipeline config (`GenerationConfig` in `src/generation_types.py`):
+
+- `prefix_window_tokens`
+- `max_section_retries`
+- `section_quality_threshold`
+- `prompt_compression_enabled`
+- `retry_on_missing_entities`
+- `consistency_pass_enabled`
 
 ## Minimal API Usage
 
@@ -138,7 +183,12 @@ class EchoRewriteModel:
 pipeline = ChunkWiseRephrasePipeline(
     model=EchoRewriteModel(),
     tokenizer=WhitespaceTokenizer(),
-    config=PipelineConfig(chunk_tokens=256, overlap_tokens=64, prefix_window_tokens=1024),
+    config=PipelineConfig(
+        chunk_size=256,
+        length_mode="token",
+        prefix_window_tokens=1024,
+        max_stitch_overlap_tokens=64,
+    ),
 )
 
 rewritten = pipeline.run("Your long document here.", style_instruction="Rewrite for clarity.")

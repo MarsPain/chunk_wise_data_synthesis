@@ -2,18 +2,21 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-这是一个受 Kimi-K2 启发的、带测试覆盖的最小化 chunk-wise 长文本合成实现，包含两条并行流水线：
+这是一个受 Kimi-K2 启发的、带测试覆盖的 chunk-wise 长文本合成实现，包含两条并行流水线：
 
 1. `ChunkWiseRephrasePipeline`：忠实改写（rephrase）。
 2. `ChunkWiseGenerationPipeline`：基于计划与状态表的纯生成（from scratch）。
 
 ## 功能特性
 
-- 支持 overlap 的 chunk 切分与拼接。
+- 分层无 overlap 切分 + 基于重叠检测的拼接去重。
 - 基于滚动前缀窗口的自回归生成。
 - rephrase 与 generation 并行共存、互不干扰。
-- 纯生成支持 Plan + State + Consistency Pass。
-- 可插拔质量控制（覆盖率/术语一致性/重复与漂移检测）。
+- rephrase 支持重试与可插拔保真度校验。
+- generation 支持分节重试与问题定向修复提示词。
+- 长上下文 generation 支持可选提示词压缩。
+- 纯生成支持 Plan + State + Consistency Pass 守卫与回退。
+- 内置质量检查（覆盖率、术语一致性、重复、漂移、必需实体）。
 - OpenAI 兼容后端，支持环境变量与脚本参数配置。
 
 ## 项目结构
@@ -107,18 +110,60 @@ PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_openai_backend_liv
 - `LLM_MODEL`（可选）：覆盖模型 ID。
 - `LLM_BASE_URL`（可选）：覆盖 API Base URL。
 
-`/Users/H/Documents/workspace_python/chunk_wise_data_synthesis/src/openai_backend.py` 中当前默认值：
+`src/openai_backend.py` 中当前默认值：
 
 - `DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"`
 - `DEFAULT_MODEL = "stepfun/step-3.5-flash:free"`
 
-脚本也支持参数覆盖：
+实时 rephrase 脚本参数（`scripts/run_live_openai_pipeline.py`）：
 
+- `--chunk-size`
+- `--length-mode`（`auto` / `token` / `char`）
+- `--prefix-window-tokens`
+- `--style`
 - `--model`
 - `--base-url`
 - `--temperature`
 - `--top-p`
 - `--max-new-tokens`
+- `--verbose`
+
+实时 generation 脚本参数（`scripts/run_live_openai_generation_pipeline.py`）：
+
+- `--topic`
+- `--objective`
+- `--target-tokens`
+- `--audience`
+- `--tone`
+- `--manual-plan-path`
+- `--prefix-window-tokens`
+- `--disable-consistency-pass`
+- `--enable-reasoning`
+- `--model`
+- `--base-url`
+- `--temperature`
+- `--top-p`
+- `--max-new-tokens`
+- `--verbose`
+
+rephrase 流水线关键配置（`src/pipeline.py` 中 `PipelineConfig`）：
+
+- `chunk_size`
+- `length_mode`
+- `prefix_window_tokens`
+- `max_retries`
+- `fidelity_threshold`
+- `max_stitch_overlap_tokens`
+- `global_anchor_mode`
+
+generation 流水线关键配置（`src/generation_types.py` 中 `GenerationConfig`）：
+
+- `prefix_window_tokens`
+- `max_section_retries`
+- `section_quality_threshold`
+- `prompt_compression_enabled`
+- `retry_on_missing_entities`
+- `consistency_pass_enabled`
 
 ## 最小 API 用法
 
@@ -138,7 +183,12 @@ class EchoRewriteModel:
 pipeline = ChunkWiseRephrasePipeline(
     model=EchoRewriteModel(),
     tokenizer=WhitespaceTokenizer(),
-    config=PipelineConfig(chunk_tokens=256, overlap_tokens=64, prefix_window_tokens=1024),
+    config=PipelineConfig(
+        chunk_size=256,
+        length_mode="token",
+        prefix_window_tokens=1024,
+        max_stitch_overlap_tokens=64,
+    ),
 )
 
 rewritten = pipeline.run("Your long document here.", style_instruction="Rewrite for clarity.")
