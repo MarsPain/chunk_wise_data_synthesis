@@ -167,6 +167,7 @@ class ChunkWiseGenerationPipeline:
                 state=state,
                 draft_text=draft_text,
                 quality_report=quality_report,
+                prompt_language=self._config.prompt_language,
             )
             candidate = self._model.generate(
                 LLMRequest(task="consistency_pass", prompt=consistency_prompt)
@@ -213,6 +214,7 @@ class ChunkWiseGenerationPipeline:
             target_tokens=target_tokens,
             audience=audience.strip(),
             tone=tone.strip(),
+            prompt_language=self._config.prompt_language,
         )
         
         # Retry plan generation if parsing fails (e.g., truncated output)
@@ -417,6 +419,7 @@ class ChunkWiseGenerationPipeline:
                         recent_text=generated_prefix,
                         section_index=section_index,
                         config=self._config,
+                        prompt_language=self._config.prompt_language,
                     )
                 else:
                     prompt = render_section_prompt(
@@ -424,6 +427,7 @@ class ChunkWiseGenerationPipeline:
                         state=state,
                         recent_text=generated_prefix,
                         section_spec=section,
+                        prompt_language=self._config.prompt_language,
                     )
             else:
                 # P1: Repair attempt with targeted guidance
@@ -434,6 +438,7 @@ class ChunkWiseGenerationPipeline:
                     current_text=best_text,
                     quality_issues=all_issues,
                     retry_index=retry,
+                    prompt_language=self._config.prompt_language,
                 )
             
             # Generate

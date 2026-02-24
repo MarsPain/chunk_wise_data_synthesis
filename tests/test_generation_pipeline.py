@@ -187,6 +187,29 @@ class GenerationPipelineTests(unittest.TestCase):
         self.assertIn("global anchor", result.final_text)
         self.assertIn("state table", result.final_text)
 
+    def test_prompt_language_zh_is_used_in_section_prompt(self) -> None:
+        plan = _build_manual_plan()
+        model = ScriptedLLMModel(
+            scripted_outputs=[
+                "global anchor appears in this section output.",
+                "state table appears in this section output.",
+                "global anchor appears in this section output. state table appears in this section output.",
+            ]
+        )
+        pipeline = ChunkWiseGenerationPipeline(
+            model=model,
+            tokenizer=WhitespaceTokenizer(),
+            config=GenerationConfig(
+                prefix_window_tokens=20,
+                prompt_language="zh",
+            ),
+        )
+
+        _ = pipeline.run(manual_plan=plan)
+
+        first_section_prompt = model.calls[0].request.prompt
+        self.assertIn("你正在生成一篇长文中的一个章节。", first_section_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

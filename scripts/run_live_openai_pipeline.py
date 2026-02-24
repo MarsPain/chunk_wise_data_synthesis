@@ -58,6 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="Rewrite for clarity while preserving all facts, numbers, and named entities.",
         help="Style instruction for rephrasing.",
     )
+    parser.add_argument(
+        "--prompt-language",
+        type=str,
+        default="en",
+        choices=["en", "zh"],
+        help="Prompt language for instructions sent to the model.",
+    )
     parser.add_argument("--chunk-size", type=int, default=80,
                         help="Chunk size limit (in tokens or chars, see --length-mode).")
     parser.add_argument("--length-mode", type=str, default="auto",
@@ -102,6 +109,7 @@ def main() -> None:
     logger.info(f"  top_p={args.top_p}")
     logger.info(f"  max_new_tokens={args.max_new_tokens}")
     logger.info(f"  style='{args.style}'")
+    logger.info(f"  prompt_language={args.prompt_language}")
 
     model = OpenAIRewriteModel(
         config=OpenAIBackendConfig(
@@ -123,6 +131,7 @@ def main() -> None:
             fidelity_threshold=0.0,
             max_retries=1,
             global_anchor_mode="head",
+            prompt_language=args.prompt_language,
         ),
     )
 

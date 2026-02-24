@@ -92,6 +92,28 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(model.calls[0].request.retry_index, 0)
         self.assertEqual(model.calls[1].request.retry_index, 1)
 
+    def test_prompt_language_is_forwarded_to_rewrite_request(self) -> None:
+        tokenizer = WhitespaceTokenizer()
+        model = ScriptedRewriteModel(outputs=["rewritten"])
+        config = PipelineConfig(
+            chunk_size=8,
+            length_mode="token",
+            prefix_window_tokens=8,
+            fidelity_threshold=0.0,
+            max_retries=1,
+            global_anchor_mode="none",
+            prompt_language="zh",
+        )
+        pipeline = ChunkWiseRephrasePipeline(
+            model=model,
+            tokenizer=tokenizer,
+            config=config,
+        )
+
+        _ = pipeline.run("s0 s1 s2 s3")
+
+        self.assertEqual(model.calls[0].request.prompt_language, "zh")
+
 
 class NumericFactCheckerAsVerifierTests(unittest.TestCase):
     """Test fidelity.NumericFactChecker as FidelityVerifier (for Rephrase Pipeline)."""

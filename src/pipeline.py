@@ -26,6 +26,7 @@ class PipelineConfig:
     max_stitch_overlap_tokens: int = 96
     global_anchor_mode: Literal["none", "head"] = "head"
     default_style_instruction: str = "neutral factual rewrite"
+    prompt_language: Literal["en", "zh"] = "en"
     
     # 兼容旧参数名
     @property
@@ -165,6 +166,7 @@ class ChunkWiseRephrasePipeline:
                 current_chunk=chunk,
                 retry_index=retry_index,
                 strict_fidelity=retry_index > 0,
+                prompt_language=self._config.prompt_language,
             )
             candidate = self._model.rewrite(request).strip()
             if not candidate:

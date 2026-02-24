@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 
 def _as_string_list(raw: Any) -> list[str]:
@@ -327,4 +327,4 @@ class GenerationConfig:
     max_entities_in_prompt: int = 20
     max_timeline_entries: int = 5
     upcoming_sections_preview: int = 2
-
+    prompt_language: Literal["en", "zh"] = "en"

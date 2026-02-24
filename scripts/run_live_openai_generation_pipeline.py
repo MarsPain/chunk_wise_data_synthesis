@@ -55,9 +55,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--topic", type=str, default="Chunk-wise autoregressive generation")
     parser.add_argument("--objective", type=str, default="Generate long-form training data")
-    parser.add_argument("--target-tokens", type=int, default=1500)
     parser.add_argument("--audience", type=str, default="ML engineers")
     parser.add_argument("--tone", type=str, default="neutral technical")
+    parser.add_argument("--target-tokens", type=int, default=1500)
+    # parser.add_argument("--topic", type=str, default="分块自回归生成")
+    # parser.add_argument("--objective", type=str, default="生成长篇训练数据")
+    # parser.add_argument("--audience", type=str, default="机器学习工程师")
+    # parser.add_argument("--tone", type=str, default="中性技术")
     parser.add_argument(
         "--manual-plan-path",
         type=Path,
@@ -81,6 +85,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--max-new-tokens", type=int, default=16384)
     parser.add_argument("--prefix-window-tokens", type=int, default=1200)
+    parser.add_argument(
+        "--prompt-language",
+        type=str,
+        default="en",
+        choices=["en", "zh"],
+        help="Prompt language for instructions sent to the model.",
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument(
         "--enable-reasoning",
@@ -110,6 +121,7 @@ def main() -> None:
     config = GenerationConfig(
         prefix_window_tokens=args.prefix_window_tokens,
         consistency_pass_enabled=not args.disable_consistency_pass,
+        prompt_language=args.prompt_language,
     )
     pipeline = ChunkWiseGenerationPipeline(
         model=model,

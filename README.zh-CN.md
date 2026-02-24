@@ -121,6 +121,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_openai_backend_liv
 - `--length-mode`（`auto` / `token` / `char`）
 - `--prefix-window-tokens`
 - `--style`
+- `--prompt-language`（`en` / `zh`）
 - `--model`
 - `--base-url`
 - `--temperature`
@@ -135,6 +136,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_openai_backend_liv
 - `--target-tokens`
 - `--audience`
 - `--tone`
+- `--prompt-language`（`en` / `zh`）
 - `--manual-plan-path`
 - `--prefix-window-tokens`
 - `--disable-consistency-pass`
@@ -155,6 +157,7 @@ rephrase 流水线关键配置（`src/pipeline.py` 中 `PipelineConfig`）：
 - `fidelity_threshold`
 - `max_stitch_overlap_tokens`
 - `global_anchor_mode`
+- `prompt_language`
 
 generation 流水线关键配置（`src/generation_types.py` 中 `GenerationConfig`）：
 
@@ -164,6 +167,7 @@ generation 流水线关键配置（`src/generation_types.py` 中 `GenerationConf
 - `prompt_compression_enabled`
 - `retry_on_missing_entities`
 - `consistency_pass_enabled`
+- `prompt_language`
 
 ## 最小 API 用法
 

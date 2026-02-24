@@ -121,6 +121,7 @@ Live rephrase script flags (`scripts/run_live_openai_pipeline.py`):
 - `--length-mode` (`auto` / `token` / `char`)
 - `--prefix-window-tokens`
 - `--style`
+- `--prompt-language` (`en` / `zh`)
 - `--model`
 - `--base-url`
 - `--temperature`
@@ -135,6 +136,7 @@ Live generation script flags (`scripts/run_live_openai_generation_pipeline.py`):
 - `--target-tokens`
 - `--audience`
 - `--tone`
+- `--prompt-language` (`en` / `zh`)
 - `--manual-plan-path`
 - `--prefix-window-tokens`
 - `--disable-consistency-pass`
@@ -155,6 +157,7 @@ Key rephrase pipeline config (`PipelineConfig` in `src/pipeline.py`):
 - `fidelity_threshold`
 - `max_stitch_overlap_tokens`
 - `global_anchor_mode`
+- `prompt_language`
 
 Key generation pipeline config (`GenerationConfig` in `src/generation_types.py`):
 
@@ -164,6 +167,7 @@ Key generation pipeline config (`GenerationConfig` in `src/generation_types.py`)
 - `prompt_compression_enabled`
 - `retry_on_missing_entities`
 - `consistency_pass_enabled`
+- `prompt_language`
 
 ## Minimal API Usage
 
