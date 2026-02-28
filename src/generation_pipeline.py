@@ -10,7 +10,7 @@ from prompts.generation import (
     render_section_prompt_compressed,
     render_section_repair_prompt,
 )
-from generation_quality import (
+from quality.generation import (
     EntityPresenceChecker,
     NumericFactChecker,
     OutlineCoverageChecker,
@@ -109,7 +109,7 @@ class ChunkWiseGenerationPipeline:
                 logger.info(f"[Pipeline] Section {index + 1} final: {actual_len} chars")
 
             if section_outputs:
-                similarity = self._token_jaccard(section_outputs[-1], section_text)
+                similarity = token_jaccard_helper(section_outputs[-1], section_text)
                 if similarity >= self._config.repetition_similarity_threshold:
                     quality_report.section_warnings.append(
                         (
@@ -285,15 +285,6 @@ class ChunkWiseGenerationPipeline:
             )
         return ""
 
-    def _token_jaccard(self, left_text: str, right_text: str) -> float:
-        left_tokens = set(self._tokenizer.encode(left_text))
-        right_tokens = set(self._tokenizer.encode(right_text))
-        if not left_tokens and not right_tokens:
-            return 1.0
-        if not left_tokens or not right_tokens:
-            return 0.0
-        return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
-
     # P0: Section generation with retry mechanism
 
     def _calculate_section_quality(
@@ -311,7 +302,7 @@ class ChunkWiseGenerationPipeline:
         issues: list[str] = []
         
         # 1. Check for missing required entities (critical)
-        missing_entities = self._get_missing_entities(section, section_text)
+        missing_entities = self._entity_checker.missing_entities(section=section, text=section_text)
         if missing_entities:
             for entity in missing_entities:
                 score -= self._config.entity_missing_penalty
@@ -334,47 +325,6 @@ class ChunkWiseGenerationPipeline:
                 )
         
         return max(0.0, score), issues
-
-    def _get_missing_entities(
-        self,
-        section: SectionSpec,
-        section_text: str,
-    ) -> list[str]:
-        """Return list of required entities missing from section text."""
-        text_lower = section_text.lower()
-        missing: list[str] = []
-        
-        for entity in section.required_entities:
-            entity_lower = entity.lower()
-            # Check exact match
-            if entity_lower in text_lower:
-                continue
-            # Check hyphen/underscore variants
-            if entity_lower.replace(" ", "-") in text_lower:
-                continue
-            if entity_lower.replace(" ", "_") in text_lower:
-                continue
-            # Check if words appear in order
-            words = entity_lower.split()
-            if len(words) > 1 and self._words_in_order(words, text_lower):
-                continue
-            missing.append(entity)
-        
-        return missing
-
-    def _words_in_order(self, words: list[str], text: str) -> bool:
-        """Check if all words appear in order within the text."""
-        text_words = text.split()
-        word_idx = 0
-        
-        for tw in text_words:
-            tw_clean = tw.strip(".,;:!?()[]{}\"'")
-            if tw_clean == words[word_idx]:
-                word_idx += 1
-                if word_idx >= len(words):
-                    return True
-        
-        return False
 
     def _generate_section_with_retries(
         self,
@@ -465,7 +415,7 @@ class ChunkWiseGenerationPipeline:
             
             # Check if quality meets threshold
             # Critical check: entity coverage must be satisfied if configured
-            missing_entities = self._get_missing_entities(section, section_text)
+            missing_entities = self._entity_checker.missing_entities(section=section, text=section_text)
             has_critical_issues = (
                 self._config.retry_on_missing_entities 
                 and missing_entities

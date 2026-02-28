@@ -4,32 +4,10 @@ import re
 from typing import Iterable
 
 from generation_types import GenerationPlan, GenerationState, SectionSpec
+from quality.generation import _is_key_point_covered
 
-_WORD_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 _ENTITY_PATTERN = re.compile(r"\b[A-Z][A-Za-z0-9_-]{2,}\b")
 _YEAR_PATTERN = re.compile(r"\b(19|20)\d{2}\b")
-
-
-def _tokenize(text: str) -> set[str]:
-    return {token.lower() for token in _WORD_PATTERN.findall(text)}
-
-
-def _is_key_point_covered(key_point: str, text: str) -> bool:
-    normalized_point = key_point.strip().lower()
-    normalized_text = text.lower()
-    if not normalized_point:
-        return True
-    if normalized_point in normalized_text:
-        return True
-
-    point_tokens = _tokenize(key_point)
-    text_tokens = _tokenize(text)
-    if not point_tokens:
-        return True
-
-    overlap = len(point_tokens & text_tokens)
-    required_overlap = 1 if len(point_tokens) == 1 else min(len(point_tokens), 2)
-    return overlap >= required_overlap
 
 
 def _merge_unique(existing: Iterable[str], new_items: Iterable[str]) -> list[str]:
@@ -95,4 +73,3 @@ def update_state(
         covered_key_points=covered,
         remaining_key_points=remaining,
     )
-

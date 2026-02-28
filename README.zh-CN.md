@@ -25,14 +25,18 @@
 src/
   chunking.py             # chunk 切分与 overlap 逻辑
   pipeline.py             # rephrase 流程编排
-  prompting.py            # rephrase 提示词
   generation_pipeline.py  # generation 流程编排
-  generation_prompting.py # generation 提示词模板
   generation_state.py     # 状态表更新逻辑
-  generation_quality.py   # 质量检查器
   generation_types.py     # generation 数据结构
+  quality/
+    base.py               # 共用 token/文本匹配工具
+    fidelity.py           # rephrase 保真度校验器
+    generation.py         # generation 质量检查器与一致性守卫
+  prompting.py            # rephrase 提示词兼容层
+  generation_prompting.py # generation 提示词兼容层
+  generation_quality.py   # 质量检查兼容层
+  fidelity.py             # 保真度校验兼容层
   openai_backend.py       # OpenAI 兼容后端
-  fidelity.py             # rephrase 保真度校验器
 tests/
   test_*.py               # 基于 unittest 的确定性测试
 scripts/

@@ -25,14 +25,18 @@ A test-covered implementation of chunk-wise long-text synthesis with two paralle
 src/
   chunking.py             # chunk split and overlap logic
   pipeline.py             # chunk-wise rephrase orchestration
-  prompting.py            # rephrase prompt construction
   generation_pipeline.py  # chunk-wise long-form generation orchestration
-  generation_prompting.py # generation prompt templates
   generation_state.py     # state table update logic
-  generation_quality.py   # coverage/consistency/repetition checks
   generation_types.py     # generation dataclasses and result types
+  quality/
+    base.py               # shared token/text matching helpers
+    fidelity.py           # rephrase fidelity verifiers
+    generation.py         # generation quality checkers and consistency guard
+  prompting.py            # legacy rephrase prompt compatibility layer
+  generation_prompting.py # legacy generation prompt compatibility layer
+  generation_quality.py   # legacy quality compatibility layer
+  fidelity.py             # legacy fidelity compatibility layer
   openai_backend.py       # OpenAI-compatible backend implementations
-  fidelity.py             # rephrase fidelity verifier interfaces
 tests/
   test_*.py               # deterministic unittest coverage
 scripts/
