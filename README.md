@@ -169,6 +169,14 @@ Key generation pipeline config (`GenerationConfig` in `src/generation_types.py`)
 - `consistency_pass_enabled`
 - `prompt_language`
 
+Recommended unified imports (`src/core/`):
+
+- `from core.protocols import Tokenizer, LLMModel, RewriteModel, FidelityVerifier`
+- `from core.types import LLMRequest, RewriteRequest, GenerationPlan, SectionSpec`
+- `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
+
+Legacy module imports remain fully supported for backward compatibility.
+
 ## Minimal API Usage
 
 ### Rephrase pipeline

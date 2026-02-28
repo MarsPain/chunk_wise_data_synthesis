@@ -169,6 +169,14 @@ generation 流水线关键配置（`src/generation_types.py` 中 `GenerationConf
 - `consistency_pass_enabled`
 - `prompt_language`
 
+推荐统一导入入口（`src/core/`）：
+
+- `from core.protocols import Tokenizer, LLMModel, RewriteModel, FidelityVerifier`
+- `from core.types import LLMRequest, RewriteRequest, GenerationPlan, SectionSpec`
+- `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
+
+旧模块导入路径继续保持兼容。
+
 ## 最小 API 用法
 
 ### Rephrase 流水线
