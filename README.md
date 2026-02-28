@@ -19,32 +19,55 @@ A test-covered implementation of chunk-wise long-text synthesis with two paralle
 - Built-in quality checks for coverage, terminology, repetition, drift, and required entities.
 - OpenAI-compatible backend with environment-based configuration.
 
+## Refactored Architecture
+
+The repository now follows explicit domain boundaries:
+
+- `pipelines/`: orchestration only (`rephrase.py`, `generation.py`, shared helpers in `base.py`).
+- `prompts/`: prompt rendering only (`rephrase.py`, `generation.py`, shared language helpers in `base.py`).
+- `quality/`: quality and fidelity checks (`fidelity.py`, `generation.py`, shared text/token helpers in `base.py`).
+- `backends/`: provider adapters (`openai.py`).
+- `core/`: stable grouped API exports (`protocols.py`, `types.py`, `config.py`).
+- Top-level domain modules remain focused (`chunking.py`, `generation_state.py`, `generation_types.py`, `model.py`).
+
+Legacy wrapper modules were removed and should not be imported anymore: `pipeline.py`, `prompting.py`, `fidelity.py`, `openai_backend.py`, `generation_pipeline.py`, `generation_prompting.py`, `generation_quality.py`, `tokenizer.py`.
+
 ## Project Layout
 
 ```text
 src/
+  __init__.py             # unified package-level public exports
   chunking.py             # chunk split and overlap logic
-  generation_state.py     # state table update logic
+  generation_state.py     # generation state table update logic
   generation_types.py     # generation dataclasses and result types
-  model.py                # LLM request and protocol contracts
+  model.py                # model request/task protocols and adapters
   pipelines/
-    rephrase.py           # chunk-wise rephrase orchestration
+    __init__.py
+    rephrase.py           # chunk-wise rephrase orchestration + PipelineConfig
     generation.py         # chunk-wise long-form generation orchestration
-    base.py               # stitching and overlap helpers
+    base.py               # overlap detection and stitching
   prompts/
-    rephrase.py           # rephrase prompt rendering
-    generation.py         # generation prompt rendering
+    __init__.py
+    rephrase.py           # RewriteRequest + rephrase prompt rendering
+    generation.py         # plan/section/repair/consistency prompt rendering
     base.py               # shared prompt language helpers
   quality/
-    base.py               # shared token/text matching helpers
-    fidelity.py           # rephrase fidelity verifiers
+    __init__.py
+    fidelity.py           # fidelity verifier contracts and implementations
     generation.py         # generation quality checkers and consistency guard
+    base.py               # shared token/text matching helpers
+  backends/
+    __init__.py
+    openai.py             # OpenAI-compatible backend and configs
+  core/
+    __init__.py
+    protocols.py          # Tokenizer/LLMModel/RewriteModel/FidelityVerifier
+    types.py              # LLMRequest, RewriteRequest, GenerationPlan, SectionSpec
+    config.py             # PipelineConfig, GenerationConfig, OpenAIBackendConfig
   tokenization/
     __init__.py           # tokenizer contracts and helpers
-  backends/
-    openai.py             # OpenAI-compatible backend implementations
 tests/
-  test_*.py               # deterministic unittest coverage
+  test_*.py               # deterministic unittest coverage + refactor compatibility tests
 scripts/
   run_live_openai_pipeline.py             # live rephrase runner
   run_live_openai_generation_pipeline.py  # live generation runner
@@ -52,31 +75,40 @@ scripts/
 
 ## Setup
 
+This project uses `uv` for environment and dependency management.
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv sync
 ```
 
 ## Run Tests
 
-Run all tests:
+Run full offline test suite:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+uv run python -m unittest discover -s tests -v
 ```
 
 Run one module during iteration:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_generation_pipeline.py' -v
+uv run python -m unittest tests.test_generation_pipeline -v
+```
+
+Validate refactor-era API boundaries and exports:
+
+```bash
+PYTHONPATH=src:tests uv run python -m unittest \
+  tests.test_package_entrypoint \
+  tests.test_core_api_compat \
+  tests.test_pipelines_api -v
 ```
 
 ## Live Rephrase Run
 
 ```bash
 export LLM_API_KEY=your_key_here
-python3 scripts/run_live_openai_pipeline.py \
+uv run python scripts/run_live_openai_pipeline.py \
   --input tests/data/live_rephrase_input.txt \
   --output tests/data/rephrase_output.txt
 ```
@@ -85,7 +117,7 @@ python3 scripts/run_live_openai_pipeline.py \
 
 ```bash
 export LLM_API_KEY=your_key_here
-python3 scripts/run_live_openai_generation_pipeline.py \
+uv run python scripts/run_live_openai_generation_pipeline.py \
   --topic "Chunk-wise autoregressive long-form generation" \
   --objective "Create long-context training text" \
   --target-tokens 1800 \
@@ -97,7 +129,7 @@ python3 scripts/run_live_openai_generation_pipeline.py \
 You can also pass a manual plan JSON:
 
 ```bash
-python3 scripts/run_live_openai_generation_pipeline.py \
+uv run python scripts/run_live_openai_generation_pipeline.py \
   --manual-plan-path tests/data/manual_plan.json \
   --output tests/data/generation_output.txt
 ```
@@ -109,7 +141,103 @@ The live integration test makes a real API request and is disabled by default:
 ```bash
 export LLM_API_KEY=your_key_here
 export RUN_LIVE_LLM_TESTS=1
-PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_openai_backend_live.py' -v
+uv run python -m unittest tests.test_openai_backend_live -v
+```
+
+## Public Import Entry Points
+
+Recommended grouped imports:
+
+- `from pipelines import ChunkWiseRephrasePipeline, ChunkWiseGenerationPipeline, PipelineConfig`
+- `from prompts import RewriteRequest, render_rewrite_prompt, render_plan_prompt`
+- `from quality import FidelityVerifier, CompositeFidelityVerifier, NumericFactChecker`
+- `from backends import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel`
+- `from core.protocols import Tokenizer, LLMModel, RewriteModel, FidelityVerifier`
+- `from core.types import LLMRequest, RewriteRequest, GenerationPlan, SectionSpec`
+- `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
+
+Compatibility package entrypoint is available at `src`:
+
+- `from src import ChunkWiseRephrasePipeline, PipelineConfig, RewriteRequest, WhitespaceTokenizer`
+
+## Minimal API Usage
+
+### Rephrase pipeline
+
+```python
+from core.config import PipelineConfig
+from core.types import RewriteRequest
+from pipelines import ChunkWiseRephrasePipeline
+from tokenization import WhitespaceTokenizer
+
+
+class EchoRewriteModel:
+    def rewrite(self, request: RewriteRequest) -> str:
+        return request.current_chunk
+
+
+pipeline = ChunkWiseRephrasePipeline(
+    model=EchoRewriteModel(),
+    tokenizer=WhitespaceTokenizer(),
+    config=PipelineConfig(
+        chunk_size=256,
+        length_mode="token",
+        prefix_window_tokens=1024,
+        max_stitch_overlap_tokens=64,
+    ),
+)
+
+rewritten = pipeline.run("Your long document here.", style_instruction="Rewrite for clarity.")
+print(rewritten)
+```
+
+### Generation pipeline (manual plan)
+
+```python
+from core.config import GenerationConfig
+from core.types import GenerationPlan, LLMRequest, SectionSpec
+from pipelines import ChunkWiseGenerationPipeline
+from tokenization import WhitespaceTokenizer
+
+
+class StubLLM:
+    def generate(self, request: LLMRequest) -> str:
+        if request.task == "section_generation":
+            return "Section body with required entities and key points."
+        if request.task == "consistency_pass":
+            return "Section body with required entities and key points."
+        raise ValueError("manual plan run should not call plan_generation")
+
+
+plan = GenerationPlan(
+    topic="Chunk-wise generation",
+    objective="Teach the method",
+    audience="ML engineers",
+    tone="neutral technical",
+    target_total_length=300,
+    sections=[
+        SectionSpec(
+            title="Intro",
+            key_points=["global anchor controls structure"],
+            required_entities=["global anchor"],
+            constraints=[],
+            target_length=120,
+        )
+    ],
+    terminology_preferences={"global anchor": "global anchor"},
+    narrative_voice="third-person",
+    do_not_include=[],
+)
+
+pipeline = ChunkWiseGenerationPipeline(
+    model=StubLLM(),
+    tokenizer=WhitespaceTokenizer(),
+    config=GenerationConfig(prefix_window_tokens=800),
+)
+
+result = pipeline.run(manual_plan=plan)
+print(result.final_text)
+print(result.qc_report.coverage_missing)
 ```
 
 ## Configuration
@@ -157,119 +285,6 @@ Live generation script flags (`scripts/run_live_openai_generation_pipeline.py`):
 - `--top-p`
 - `--max-new-tokens`
 - `--verbose`
-
-Key rephrase pipeline config (`PipelineConfig` in `src/pipelines/rephrase.py`):
-
-- `chunk_size`
-- `length_mode`
-- `prefix_window_tokens`
-- `max_retries`
-- `fidelity_threshold`
-- `max_stitch_overlap_tokens`
-- `global_anchor_mode`
-- `prompt_language`
-
-Key generation pipeline config (`GenerationConfig` in `src/generation_types.py`):
-
-- `prefix_window_tokens`
-- `max_section_retries`
-- `section_quality_threshold`
-- `prompt_compression_enabled`
-- `retry_on_missing_entities`
-- `consistency_pass_enabled`
-- `prompt_language`
-
-Recommended unified imports (`src/core/`):
-
-- `from core.protocols import Tokenizer, LLMModel, RewriteModel, FidelityVerifier`
-- `from core.types import LLMRequest, RewriteRequest, GenerationPlan, SectionSpec`
-- `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
-- `from backends import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel`
-
-Canonical pipeline imports now live under `pipelines`; legacy wrapper modules have been removed.
-
-Unified package entrypoint is available at `src`:
-
-- `from src import ChunkWiseRephrasePipeline, PipelineConfig, RewriteRequest, WhitespaceTokenizer`
-
-## Minimal API Usage
-
-### Rephrase pipeline
-
-```python
-from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
-from prompts import RewriteRequest
-from tokenization import WhitespaceTokenizer
-
-
-class EchoRewriteModel:
-    def rewrite(self, request: RewriteRequest) -> str:
-        return request.current_chunk
-
-
-pipeline = ChunkWiseRephrasePipeline(
-    model=EchoRewriteModel(),
-    tokenizer=WhitespaceTokenizer(),
-    config=PipelineConfig(
-        chunk_size=256,
-        length_mode="token",
-        prefix_window_tokens=1024,
-        max_stitch_overlap_tokens=64,
-    ),
-)
-
-rewritten = pipeline.run("Your long document here.", style_instruction="Rewrite for clarity.")
-print(rewritten)
-```
-
-### Generation pipeline (manual plan)
-
-```python
-from pipelines import ChunkWiseGenerationPipeline
-from generation_types import GenerationConfig, GenerationPlan, SectionSpec
-from model import LLMRequest
-from tokenization import WhitespaceTokenizer
-
-
-class StubLLM:
-    def generate(self, request: LLMRequest) -> str:
-        if request.task == "section_generation":
-            return "Section body with required entities and key points."
-        if request.task == "consistency_pass":
-            return "Section body with required entities and key points."
-        raise ValueError("manual plan run should not call plan_generation")
-
-
-plan = GenerationPlan(
-    topic="Chunk-wise generation",
-    objective="Teach the method",
-    audience="ML engineers",
-    tone="neutral technical",
-    target_total_length=300,
-    sections=[
-        SectionSpec(
-            title="Intro",
-            key_points=["global anchor controls structure"],
-            required_entities=["global anchor"],
-            constraints=[],
-            target_length=120,
-        )
-    ],
-    terminology_preferences={"global anchor": "global anchor"},
-    narrative_voice="third-person",
-    do_not_include=[],
-)
-
-pipeline = ChunkWiseGenerationPipeline(
-    model=StubLLM(),
-    tokenizer=WhitespaceTokenizer(),
-    config=GenerationConfig(prefix_window_tokens=800),
-)
-
-result = pipeline.run(manual_plan=plan)
-print(result.final_text)
-print(result.qc_report.coverage_missing)
-```
 
 ## Troubleshooting
 
