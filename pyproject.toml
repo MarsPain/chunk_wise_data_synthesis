@@ -11,20 +11,15 @@ dependencies = [
   "openai>=1.40.0",
 ]
 
+[tool.uv]
+package = false
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["backends", "core", "pipelines", "prompts", "quality", "tokenization"]
 py-modules = [
   "chunking",
-  "fidelity",
-  "generation_pipeline",
-  "generation_prompting",
-  "generation_quality",
   "generation_state",
   "generation_types",
   "model",
-  "openai_backend",
-  "pipeline",
-  "prompting",
-  "tokenizer",
 ]

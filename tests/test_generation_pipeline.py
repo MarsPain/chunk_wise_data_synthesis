@@ -7,10 +7,10 @@ from path_setup import ensure_src_path
 
 ensure_src_path()
 
-from generation_pipeline import ChunkWiseGenerationPipeline
+from pipelines import ChunkWiseGenerationPipeline
 from generation_types import GenerationConfig, GenerationPlan, SectionSpec
 from model import LLMRequest
-from tokenizer import WhitespaceTokenizer
+from tokenization import WhitespaceTokenizer
 
 
 @dataclass

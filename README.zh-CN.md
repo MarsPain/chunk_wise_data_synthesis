@@ -24,21 +24,25 @@
 ```text
 src/
   chunking.py             # chunk 切分与 overlap 逻辑
-  pipeline.py             # rephrase 流程编排
-  generation_pipeline.py  # generation 流程编排
   generation_state.py     # 状态表更新逻辑
   generation_types.py     # generation 数据结构
+  model.py                # LLM 请求与协议定义
+  pipelines/
+    rephrase.py           # rephrase 流程编排
+    generation.py         # generation 流程编排
+    base.py               # 拼接与重叠工具
+  prompts/
+    rephrase.py           # rephrase 提示词渲染
+    generation.py         # generation 提示词渲染
+    base.py               # 提示词语言共用逻辑
   quality/
     base.py               # 共用 token/文本匹配工具
     fidelity.py           # rephrase 保真度校验器
     generation.py         # generation 质量检查器与一致性守卫
-  prompting.py            # rephrase 提示词兼容层
-  generation_prompting.py # generation 提示词兼容层
-  generation_quality.py   # 质量检查兼容层
-  fidelity.py             # 保真度校验兼容层
+  tokenization/
+    __init__.py           # 分词器协议与工具
   backends/
     openai.py             # OpenAI 兼容后端实现
-  openai_backend.py       # 旧路径兼容层
 tests/
   test_*.py               # 基于 unittest 的确定性测试
 scripts/
@@ -154,7 +158,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_openai_backend_liv
 - `--max-new-tokens`
 - `--verbose`
 
-rephrase 流水线关键配置（`src/pipeline.py` 中 `PipelineConfig`）：
+rephrase 流水线关键配置（`src/pipelines/rephrase.py` 中 `PipelineConfig`）：
 
 - `chunk_size`
 - `length_mode`
@@ -182,7 +186,11 @@ generation 流水线关键配置（`src/generation_types.py` 中 `GenerationConf
 - `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
 - `from backends import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel`
 
-`pipelines` 现在是管道层标准导入入口，旧模块导入路径继续保持兼容。
+`pipelines` 现在是管道层标准导入入口，旧兼容 wrapper 模块已移除。
+
+统一包入口可通过 `src` 使用：
+
+- `from src import ChunkWiseRephrasePipeline, PipelineConfig, RewriteRequest, WhitespaceTokenizer`
 
 ## 最小 API 用法
 
@@ -190,8 +198,8 @@ generation 流水线关键配置（`src/generation_types.py` 中 `GenerationConf
 
 ```python
 from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
-from prompting import RewriteRequest
-from tokenizer import WhitespaceTokenizer
+from prompts import RewriteRequest
+from tokenization import WhitespaceTokenizer
 
 
 class EchoRewriteModel:
@@ -220,7 +228,7 @@ print(rewritten)
 from pipelines import ChunkWiseGenerationPipeline
 from generation_types import GenerationConfig, GenerationPlan, SectionSpec
 from model import LLMRequest
-from tokenizer import WhitespaceTokenizer
+from tokenization import WhitespaceTokenizer
 
 
 class StubLLM:

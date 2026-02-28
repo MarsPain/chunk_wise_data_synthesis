@@ -6,9 +6,9 @@ from path_setup import ensure_src_path
 
 ensure_src_path()
 
-from openai_backend import OpenAIBackendConfig, OpenAIRewriteModel
-from pipeline import ChunkWiseRephrasePipeline, PipelineConfig
-from tokenizer import WhitespaceTokenizer
+from backends.openai import OpenAIBackendConfig, OpenAIRewriteModel
+from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
+from tokenization import WhitespaceTokenizer
 
 
 def _require_live_api_or_skip(test_case: unittest.TestCase) -> None:

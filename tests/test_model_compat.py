@@ -5,9 +5,9 @@ from path_setup import ensure_src_path
 
 ensure_src_path()
 
-from openai_backend import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel
+from backends.openai import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel
 from model import LLMRequest
-from prompting import RewriteRequest
+from prompts import RewriteRequest
 
 
 class _FakeCompletions:

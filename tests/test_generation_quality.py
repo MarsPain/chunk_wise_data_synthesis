@@ -4,7 +4,7 @@ from path_setup import ensure_src_path
 
 ensure_src_path()
 
-from generation_quality import (
+from quality.generation import (
     EntityPresenceChecker,
     NumericFactChecker,
     OutlineCoverageChecker,

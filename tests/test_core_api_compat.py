@@ -4,50 +4,42 @@ from path_setup import ensure_src_path
 
 ensure_src_path()
 
-from fidelity import FidelityVerifier as LegacyFidelityVerifier
-from model import LLMModel as LegacyLLMModel
-from model import LLMRequest as LegacyLLMRequest
-from model import LLMTask as LegacyLLMTask
-from model import RewriteModel as LegacyRewriteModel
-from openai_backend import OpenAIBackendConfig as LegacyOpenAIBackendConfig
-from pipeline import PipelineConfig as LegacyPipelineConfig
-from prompting import PromptLanguage as LegacyPromptLanguage
-from prompting import RewriteRequest as LegacyRewriteRequest
-from tokenizer import Tokenizer as LegacyTokenizer
-from generation_types import GenerationConfig as LegacyGenerationConfig
-from generation_types import GenerationPlan as LegacyGenerationPlan
-from generation_types import GenerationResult as LegacyGenerationResult
-from generation_types import GenerationState as LegacyGenerationState
-from generation_types import QualityReport as LegacyQualityReport
-from generation_types import SectionSpec as LegacySectionSpec
+from backends.openai import OpenAIBackendConfig as OpenAIBackendConfigImpl
+from generation_types import GenerationConfig, GenerationPlan, GenerationResult, GenerationState, QualityReport, SectionSpec
+from model import LLMModel, LLMRequest, LLMTask, RewriteModel
+from pipelines.rephrase import PipelineConfig as PipelineConfigImpl
+from prompts.base import PromptLanguage
+from prompts.rephrase import RewriteRequest
+from quality.fidelity import FidelityVerifier
+from tokenization import Tokenizer
 
 from core import config as core_config
 from core import protocols as core_protocols
 from core import types as core_types
 
 
-class CoreApiCompatTests(unittest.TestCase):
-    def test_protocols_reexport_legacy_contracts(self) -> None:
-        self.assertIs(core_protocols.Tokenizer, LegacyTokenizer)
-        self.assertIs(core_protocols.LLMModel, LegacyLLMModel)
-        self.assertIs(core_protocols.RewriteModel, LegacyRewriteModel)
-        self.assertIs(core_protocols.FidelityVerifier, LegacyFidelityVerifier)
+class CoreApiTests(unittest.TestCase):
+    def test_protocols_reexport_contracts(self) -> None:
+        self.assertIs(core_protocols.Tokenizer, Tokenizer)
+        self.assertIs(core_protocols.LLMModel, LLMModel)
+        self.assertIs(core_protocols.RewriteModel, RewriteModel)
+        self.assertIs(core_protocols.FidelityVerifier, FidelityVerifier)
 
-    def test_types_reexport_legacy_types(self) -> None:
-        self.assertIs(core_types.LLMTask, LegacyLLMTask)
-        self.assertIs(core_types.LLMRequest, LegacyLLMRequest)
-        self.assertIs(core_types.RewriteRequest, LegacyRewriteRequest)
-        self.assertIs(core_types.PromptLanguage, LegacyPromptLanguage)
-        self.assertIs(core_types.GenerationPlan, LegacyGenerationPlan)
-        self.assertIs(core_types.SectionSpec, LegacySectionSpec)
-        self.assertIs(core_types.GenerationState, LegacyGenerationState)
-        self.assertIs(core_types.GenerationResult, LegacyGenerationResult)
-        self.assertIs(core_types.QualityReport, LegacyQualityReport)
+    def test_types_reexport_domain_types(self) -> None:
+        self.assertIs(core_types.LLMTask, LLMTask)
+        self.assertIs(core_types.LLMRequest, LLMRequest)
+        self.assertIs(core_types.RewriteRequest, RewriteRequest)
+        self.assertIs(core_types.PromptLanguage, PromptLanguage)
+        self.assertIs(core_types.GenerationPlan, GenerationPlan)
+        self.assertIs(core_types.SectionSpec, SectionSpec)
+        self.assertIs(core_types.GenerationState, GenerationState)
+        self.assertIs(core_types.GenerationResult, GenerationResult)
+        self.assertIs(core_types.QualityReport, QualityReport)
 
-    def test_config_reexport_legacy_configs(self) -> None:
-        self.assertIs(core_config.PipelineConfig, LegacyPipelineConfig)
-        self.assertIs(core_config.GenerationConfig, LegacyGenerationConfig)
-        self.assertIs(core_config.OpenAIBackendConfig, LegacyOpenAIBackendConfig)
+    def test_config_reexport_domain_configs(self) -> None:
+        self.assertIs(core_config.PipelineConfig, PipelineConfigImpl)
+        self.assertIs(core_config.GenerationConfig, GenerationConfig)
+        self.assertIs(core_config.OpenAIBackendConfig, OpenAIBackendConfigImpl)
 
     def test_core_init_exposes_expected_modules(self) -> None:
         from core import __all__ as core_all

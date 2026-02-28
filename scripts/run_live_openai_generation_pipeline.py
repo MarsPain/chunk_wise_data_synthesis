@@ -29,7 +29,7 @@ def _ensure_src_on_path() -> None:
 
 _ensure_src_on_path()
 
-from generation_pipeline import ChunkWiseGenerationPipeline
+from pipelines import ChunkWiseGenerationPipeline
 from generation_types import GenerationConfig, GenerationPlan
 from backends import OpenAIBackendConfig, OpenAILLMModel
 from backends.openai import (

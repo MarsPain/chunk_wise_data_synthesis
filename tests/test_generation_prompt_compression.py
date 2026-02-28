@@ -11,7 +11,7 @@ if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
 from generation_types import GenerationConfig, GenerationPlan, GenerationState, SectionSpec
-from generation_prompting import (
+from prompts.generation import (
     render_section_prompt,
     render_section_prompt_compressed,
     _summarize_covered_points,

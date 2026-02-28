@@ -6,9 +6,9 @@ from path_setup import ensure_src_path
 
 ensure_src_path()
 
-from pipeline import ChunkWiseRephrasePipeline, PipelineConfig
-from prompting import RewriteRequest
-from tokenizer import WhitespaceTokenizer
+from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
+from prompts import RewriteRequest
+from tokenization import WhitespaceTokenizer
 
 
 @dataclass
@@ -119,7 +119,7 @@ class NumericFactCheckerAsVerifierTests(unittest.TestCase):
     """Test fidelity.NumericFactChecker as FidelityVerifier (for Rephrase Pipeline)."""
     
     def test_as_verifier_detects_missing_year(self) -> None:
-        from fidelity import NumericFactChecker
+        from quality.fidelity import NumericFactChecker
 
         # Use as FidelityVerifier with penalty
         verifier = NumericFactChecker(numeric_penalty=0.3)
@@ -135,7 +135,7 @@ class NumericFactCheckerAsVerifierTests(unittest.TestCase):
 
     def test_as_verifier_detects_missing_year_edge_case(self) -> None:
         """Additional test to verify year extraction works correctly."""
-        from fidelity import NumericFactChecker
+        from quality.fidelity import NumericFactChecker
 
         verifier = NumericFactChecker(numeric_penalty=0.3)
         source = "The year 2020 was significant."
@@ -149,7 +149,7 @@ class NumericFactCheckerAsVerifierTests(unittest.TestCase):
         self.assertTrue(any("2020" in issue for issue in issues) or len(issues) > 0)
 
     def test_as_verifier_detects_missing_percentage(self) -> None:
-        from fidelity import NumericFactChecker
+        from quality.fidelity import NumericFactChecker
 
         verifier = NumericFactChecker(numeric_penalty=0.3)
         source = "The model achieved 95.5% accuracy."
@@ -164,7 +164,7 @@ class NumericFactCheckerAsVerifierTests(unittest.TestCase):
 
     def test_as_verifier_no_penalty_mode(self) -> None:
         """Default mode (numeric_penalty=0) - no score penalty, just checking."""
-        from fidelity import NumericFactChecker
+        from quality.fidelity import NumericFactChecker
 
         checker = NumericFactChecker()
         source = "Released in 2020, version 2.0 improved performance by 15%."
@@ -177,7 +177,7 @@ class NumericFactCheckerAsVerifierTests(unittest.TestCase):
         self.assertEqual(score, 1.0)  # Always 1.0 in no-penalty mode
 
     def test_as_verifier_applies_penalty(self) -> None:
-        from fidelity import NumericFactChecker
+        from quality.fidelity import NumericFactChecker
 
         verifier = NumericFactChecker(numeric_penalty=0.2)
         source = "In 2017 and 2018, growth was 25% and 30%."
@@ -190,7 +190,7 @@ class NumericFactCheckerAsVerifierTests(unittest.TestCase):
         self.assertGreaterEqual(score, 0.0)
 
     def test_composite_verifier_with_numeric_checker(self) -> None:
-        from fidelity import CompositeFidelityVerifier, TokenJaccardVerifier, NumericFactChecker
+        from quality.fidelity import CompositeFidelityVerifier, TokenJaccardVerifier, NumericFactChecker
 
         composite = CompositeFidelityVerifier([
             (TokenJaccardVerifier(), 0.5),

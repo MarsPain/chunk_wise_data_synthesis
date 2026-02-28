@@ -24,21 +24,25 @@ A test-covered implementation of chunk-wise long-text synthesis with two paralle
 ```text
 src/
   chunking.py             # chunk split and overlap logic
-  pipeline.py             # chunk-wise rephrase orchestration
-  generation_pipeline.py  # chunk-wise long-form generation orchestration
   generation_state.py     # state table update logic
   generation_types.py     # generation dataclasses and result types
+  model.py                # LLM request and protocol contracts
+  pipelines/
+    rephrase.py           # chunk-wise rephrase orchestration
+    generation.py         # chunk-wise long-form generation orchestration
+    base.py               # stitching and overlap helpers
+  prompts/
+    rephrase.py           # rephrase prompt rendering
+    generation.py         # generation prompt rendering
+    base.py               # shared prompt language helpers
   quality/
     base.py               # shared token/text matching helpers
     fidelity.py           # rephrase fidelity verifiers
     generation.py         # generation quality checkers and consistency guard
-  prompting.py            # legacy rephrase prompt compatibility layer
-  generation_prompting.py # legacy generation prompt compatibility layer
-  generation_quality.py   # legacy quality compatibility layer
-  fidelity.py             # legacy fidelity compatibility layer
+  tokenization/
+    __init__.py           # tokenizer contracts and helpers
   backends/
     openai.py             # OpenAI-compatible backend implementations
-  openai_backend.py       # legacy OpenAI backend compatibility layer
 tests/
   test_*.py               # deterministic unittest coverage
 scripts/
@@ -154,7 +158,7 @@ Live generation script flags (`scripts/run_live_openai_generation_pipeline.py`):
 - `--max-new-tokens`
 - `--verbose`
 
-Key rephrase pipeline config (`PipelineConfig` in `src/pipeline.py`):
+Key rephrase pipeline config (`PipelineConfig` in `src/pipelines/rephrase.py`):
 
 - `chunk_size`
 - `length_mode`
@@ -182,7 +186,11 @@ Recommended unified imports (`src/core/`):
 - `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
 - `from backends import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel`
 
-Canonical pipeline imports now live under `pipelines`; legacy module imports remain fully supported.
+Canonical pipeline imports now live under `pipelines`; legacy wrapper modules have been removed.
+
+Unified package entrypoint is available at `src`:
+
+- `from src import ChunkWiseRephrasePipeline, PipelineConfig, RewriteRequest, WhitespaceTokenizer`
 
 ## Minimal API Usage
 
@@ -190,8 +198,8 @@ Canonical pipeline imports now live under `pipelines`; legacy module imports rem
 
 ```python
 from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
-from prompting import RewriteRequest
-from tokenizer import WhitespaceTokenizer
+from prompts import RewriteRequest
+from tokenization import WhitespaceTokenizer
 
 
 class EchoRewriteModel:
@@ -220,7 +228,7 @@ print(rewritten)
 from pipelines import ChunkWiseGenerationPipeline
 from generation_types import GenerationConfig, GenerationPlan, SectionSpec
 from model import LLMRequest
-from tokenizer import WhitespaceTokenizer
+from tokenization import WhitespaceTokenizer
 
 
 class StubLLM:

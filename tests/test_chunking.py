@@ -12,8 +12,8 @@ from chunking import (
     split_into_char_chunks,
     split_document_into_chunks,
 )
-from pipeline import stitch_rewritten_chunks
-from tokenizer import WhitespaceTokenizer
+from pipelines import stitch_rewritten_chunks
+from tokenization import WhitespaceTokenizer
 
 
 class ScriptDetectionTests(unittest.TestCase):

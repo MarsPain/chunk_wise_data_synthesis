@@ -8,7 +8,7 @@ from path_setup import ensure_src_path
 
 ensure_src_path()
 
-from openai_backend import (
+from backends.openai import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
     OpenAIBackendConfig,
@@ -16,7 +16,7 @@ from openai_backend import (
     OpenAILLMModel,
 )
 from model import LLMRequest
-from prompting import RewriteRequest
+from prompts import RewriteRequest
 
 # 配置日志
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")

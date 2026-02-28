@@ -7,7 +7,7 @@ src_path = repo_root / "src"
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
-from prompting import RewriteRequest, render_rewrite_prompt
+from prompts import RewriteRequest, render_rewrite_prompt
 
 
 class RewritePromptLanguageTests(unittest.TestCase):

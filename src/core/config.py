@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from backends import OpenAIBackendConfig
 from generation_types import GenerationConfig
-from pipeline import PipelineConfig
+from pipelines import PipelineConfig
 
 __all__ = [
     "PipelineConfig",

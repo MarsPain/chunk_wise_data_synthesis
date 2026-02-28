@@ -34,7 +34,7 @@ from backends.openai import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
 )
-from pipeline import ChunkWiseRephrasePipeline, PipelineConfig
+from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
 from tokenization import WhitespaceTokenizer
 
 

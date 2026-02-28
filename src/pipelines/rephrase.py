@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List, Literal
 
 from chunking import split_document_into_chunks
-from fidelity import FidelityVerifier, NoOpVerifier
+from quality.fidelity import FidelityVerifier, NoOpVerifier
 from model import RewriteModel
 from pipelines.base import stitch_rewritten_chunks
 from prompts.rephrase import RewriteRequest

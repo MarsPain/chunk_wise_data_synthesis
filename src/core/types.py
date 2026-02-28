@@ -3,7 +3,7 @@ from __future__ import annotations
 """Unified type exports for public consumption.
 
 This module provides a stable import surface and intentionally keeps type
-ownership in domain modules (`prompting.py`, `model.py`, `generation_types.py`).
+ownership in domain modules (`prompts.rephrase`, `model.py`, `generation_types.py`).
 """
 
 from generation_types import (

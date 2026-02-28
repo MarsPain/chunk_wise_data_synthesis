@@ -49,12 +49,6 @@ class TokenizationApiTests(unittest.TestCase):
         tokenizer: Tokenizer = WhitespaceTokenizer()
         self.assertEqual(take_last_tokens("a b c d", tokenizer, 2), "c d")
 
-    def test_legacy_tokenizer_module_reexports_new_contract(self) -> None:
-        from tokenization import Tokenizer as NewTokenizer
-        from tokenizer import Tokenizer as LegacyTokenizer
-
-        self.assertIs(LegacyTokenizer, NewTokenizer)
-
 
 class PromptsApiTests(unittest.TestCase):
     def test_prompts_base_helpers(self) -> None:
@@ -136,14 +130,13 @@ class PromptsApiTests(unittest.TestCase):
         )
         self.assertEqual(_summarize_covered_points([]), "None yet")
 
-    def test_legacy_prompting_modules_reexport_new_symbols(self) -> None:
-        from generation_prompting import render_plan_prompt as legacy_generation_prompt
-        from prompts.generation import render_plan_prompt as new_generation_prompt
-        from prompting import RewriteRequest as LegacyRewriteRequest
-        from prompts.rephrase import RewriteRequest as NewRewriteRequest
+    def test_prompts_package_exports_expected_symbols(self) -> None:
+        from prompts import RewriteRequest, render_plan_prompt
+        from prompts.generation import render_plan_prompt as render_plan_prompt_impl
+        from prompts.rephrase import RewriteRequest as RewriteRequestImpl
 
-        self.assertIs(LegacyRewriteRequest, NewRewriteRequest)
-        self.assertIs(legacy_generation_prompt, new_generation_prompt)
+        self.assertIs(RewriteRequest, RewriteRequestImpl)
+        self.assertIs(render_plan_prompt, render_plan_prompt_impl)
 
 
 if __name__ == "__main__":
