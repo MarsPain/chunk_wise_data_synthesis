@@ -2,7 +2,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-这是一个受 Kimi-K2 启发的、带测试覆盖的 chunk-wise 长文本合成实现，包含两条并行流水线：
+这是一个受 Kimi-K2 启发的、带测试覆盖的 chunk-wise 长文本合成实现，包含两条并行流水线： 
 
 1. `ChunkWiseRephrasePipeline`：忠实改写（rephrase）。
 2. `ChunkWiseGenerationPipeline`：基于计划与状态表的纯生成（from scratch）。
@@ -36,7 +36,9 @@ src/
   generation_prompting.py # generation 提示词兼容层
   generation_quality.py   # 质量检查兼容层
   fidelity.py             # 保真度校验兼容层
-  openai_backend.py       # OpenAI 兼容后端
+  backends/
+    openai.py             # OpenAI 兼容后端实现
+  openai_backend.py       # 旧路径兼容层
 tests/
   test_*.py               # 基于 unittest 的确定性测试
 scripts/
@@ -114,7 +116,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_openai_backend_liv
 - `LLM_MODEL`（可选）：覆盖模型 ID。
 - `LLM_BASE_URL`（可选）：覆盖 API Base URL。
 
-`src/openai_backend.py` 中当前默认值：
+`src/backends/openai.py` 中当前默认值：
 
 - `DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"`
 - `DEFAULT_MODEL = "stepfun/step-3.5-flash:free"`
@@ -178,15 +180,16 @@ generation 流水线关键配置（`src/generation_types.py` 中 `GenerationConf
 - `from core.protocols import Tokenizer, LLMModel, RewriteModel, FidelityVerifier`
 - `from core.types import LLMRequest, RewriteRequest, GenerationPlan, SectionSpec`
 - `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
+- `from backends import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel`
 
-旧模块导入路径继续保持兼容。
+`pipelines` 现在是管道层标准导入入口，旧模块导入路径继续保持兼容。
 
 ## 最小 API 用法
 
 ### Rephrase 流水线
 
 ```python
-from pipeline import ChunkWiseRephrasePipeline, PipelineConfig
+from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
 from prompting import RewriteRequest
 from tokenizer import WhitespaceTokenizer
 
@@ -214,7 +217,7 @@ print(rewritten)
 ### Generation 流水线（manual plan）
 
 ```python
-from generation_pipeline import ChunkWiseGenerationPipeline
+from pipelines import ChunkWiseGenerationPipeline
 from generation_types import GenerationConfig, GenerationPlan, SectionSpec
 from model import LLMRequest
 from tokenizer import WhitespaceTokenizer

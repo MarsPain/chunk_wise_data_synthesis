@@ -36,7 +36,9 @@ src/
   generation_prompting.py # legacy generation prompt compatibility layer
   generation_quality.py   # legacy quality compatibility layer
   fidelity.py             # legacy fidelity compatibility layer
-  openai_backend.py       # OpenAI-compatible backend implementations
+  backends/
+    openai.py             # OpenAI-compatible backend implementations
+  openai_backend.py       # legacy OpenAI backend compatibility layer
 tests/
   test_*.py               # deterministic unittest coverage
 scripts/
@@ -114,7 +116,7 @@ Environment variables:
 - `LLM_MODEL` (optional): override model ID.
 - `LLM_BASE_URL` (optional): override provider base URL.
 
-Current defaults in `src/openai_backend.py`:
+Current defaults in `src/backends/openai.py`:
 
 - `DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"`
 - `DEFAULT_MODEL = "stepfun/step-3.5-flash:free"`
@@ -178,15 +180,16 @@ Recommended unified imports (`src/core/`):
 - `from core.protocols import Tokenizer, LLMModel, RewriteModel, FidelityVerifier`
 - `from core.types import LLMRequest, RewriteRequest, GenerationPlan, SectionSpec`
 - `from core.config import PipelineConfig, GenerationConfig, OpenAIBackendConfig`
+- `from backends import OpenAIBackendConfig, OpenAILLMModel, OpenAIRewriteModel`
 
-Legacy module imports remain fully supported for backward compatibility.
+Canonical pipeline imports now live under `pipelines`; legacy module imports remain fully supported.
 
 ## Minimal API Usage
 
 ### Rephrase pipeline
 
 ```python
-from pipeline import ChunkWiseRephrasePipeline, PipelineConfig
+from pipelines import ChunkWiseRephrasePipeline, PipelineConfig
 from prompting import RewriteRequest
 from tokenizer import WhitespaceTokenizer
 
@@ -214,7 +217,7 @@ print(rewritten)
 ### Generation pipeline (manual plan)
 
 ```python
-from generation_pipeline import ChunkWiseGenerationPipeline
+from pipelines import ChunkWiseGenerationPipeline
 from generation_types import GenerationConfig, GenerationPlan, SectionSpec
 from model import LLMRequest
 from tokenizer import WhitespaceTokenizer

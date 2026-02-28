@@ -26,11 +26,13 @@ def _ensure_src_on_path() -> None:
 
 _ensure_src_on_path()
 
-from openai_backend import (
-    DEFAULT_BASE_URL,
-    DEFAULT_MODEL,
+from backends import (
     OpenAIBackendConfig,
     OpenAIRewriteModel,
+)
+from backends.openai import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
 )
 from pipeline import ChunkWiseRephrasePipeline, PipelineConfig
 from tokenization import WhitespaceTokenizer

@@ -13,7 +13,7 @@ dependencies = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["core", "prompts", "quality", "tokenization"]
+packages = ["backends", "core", "pipelines", "prompts", "quality", "tokenization"]
 py-modules = [
   "chunking",
   "fidelity",

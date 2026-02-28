@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-"""Legacy rephrase pipeline module kept for backward compatibility.
-
-Canonical implementation now lives in `pipelines.rephrase` / `pipelines.base`.
-"""
-
 from pipelines.base import _longest_overlap, stitch_rewritten_chunks
+from pipelines.generation import ChunkWiseGenerationPipeline
 from pipelines.rephrase import ChunkWiseRephrasePipeline, PipelineConfig
 
 __all__ = [
     "PipelineConfig",
     "ChunkWiseRephrasePipeline",
+    "ChunkWiseGenerationPipeline",
     "_longest_overlap",
     "stitch_rewritten_chunks",
 ]

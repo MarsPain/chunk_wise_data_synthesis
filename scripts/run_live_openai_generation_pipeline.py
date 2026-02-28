@@ -31,11 +31,10 @@ _ensure_src_on_path()
 
 from generation_pipeline import ChunkWiseGenerationPipeline
 from generation_types import GenerationConfig, GenerationPlan
-from openai_backend import (
+from backends import OpenAIBackendConfig, OpenAILLMModel
+from backends.openai import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
-    OpenAIBackendConfig,
-    OpenAILLMModel,
 )
 from tokenization import WhitespaceTokenizer
 
