@@ -8,7 +8,7 @@ backward compatibility while providing a single import surface.
 
 from fidelity import FidelityVerifier
 from model import LLMModel, RewriteModel
-from tokenizer import Tokenizer
+from tokenization import Tokenizer
 
 __all__ = [
     "Tokenizer",

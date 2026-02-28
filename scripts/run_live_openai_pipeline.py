@@ -33,7 +33,7 @@ from openai_backend import (
     OpenAIRewriteModel,
 )
 from pipeline import ChunkWiseRephrasePipeline, PipelineConfig
-from tokenizer import WhitespaceTokenizer
+from tokenization import WhitespaceTokenizer
 
 
 def build_parser() -> argparse.ArgumentParser:

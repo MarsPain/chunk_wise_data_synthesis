@@ -37,7 +37,7 @@ from openai_backend import (
     OpenAIBackendConfig,
     OpenAILLMModel,
 )
-from tokenizer import WhitespaceTokenizer
+from tokenization import WhitespaceTokenizer
 
 
 def _load_manual_plan(path: Path | None) -> GenerationPlan | None:

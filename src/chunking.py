@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import List, Literal
 
-from tokenizer import Tokenizer
+from tokenization import Tokenizer
 
 
 def detect_dominant_script(text: str) -> Literal["latin", "cjk", "mixed"]:

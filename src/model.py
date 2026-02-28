@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from prompting import RewriteRequest
+from prompts.rephrase import RewriteRequest
 
 
 LLMTask = Literal[
@@ -35,7 +35,7 @@ class RewriteModelFromLLM:
         self._llm_model = llm_model
 
     def rewrite(self, request: RewriteRequest) -> str:
-        from prompting import render_rewrite_prompt
+        from prompts.rephrase import render_rewrite_prompt
 
         prompt = render_rewrite_prompt(request)
         return self._llm_model.generate(

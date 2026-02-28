@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from model import LLMModel, LLMRequest, RewriteModel
-from prompting import RewriteRequest, render_rewrite_prompt
+from prompts.rephrase import RewriteRequest, render_rewrite_prompt
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "stepfun/step-3.5-flash:free"

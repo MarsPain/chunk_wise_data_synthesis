@@ -1,22 +1,19 @@
 from __future__ import annotations
 
-"""Legacy generation prompting module kept for backward compatibility."""
-
-from prompts.base import PromptLanguage, _none_text, _resolve_prompt_language
+from prompts.base import PromptLanguage
 from prompts.generation import (
-    _summarize_covered_points,
     render_consistency_prompt,
     render_plan_prompt,
     render_section_prompt,
     render_section_prompt_compressed,
     render_section_repair_prompt,
 )
+from prompts.rephrase import RewriteRequest, render_rewrite_prompt
 
 __all__ = [
     "PromptLanguage",
-    "_resolve_prompt_language",
-    "_none_text",
-    "_summarize_covered_points",
+    "RewriteRequest",
+    "render_rewrite_prompt",
     "render_plan_prompt",
     "render_section_prompt",
     "render_consistency_prompt",

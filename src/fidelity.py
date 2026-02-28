@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import NamedTuple, Protocol
 
-from tokenizer import Tokenizer, WhitespaceTokenizer
+from tokenization import Tokenizer, WhitespaceTokenizer
 
 
 class FidelityVerifier(Protocol):

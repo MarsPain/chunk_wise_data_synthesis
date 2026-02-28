@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from generation_prompting import (
+from prompts.generation import (
     render_consistency_prompt,
     render_plan_prompt,
     render_section_prompt,
@@ -29,7 +29,7 @@ from generation_types import (
     SectionSpec,
 )
 from model import LLMModel, LLMRequest
-from tokenizer import Tokenizer, take_last_tokens
+from tokenization import Tokenizer, take_last_tokens
 
 logger = logging.getLogger(__name__)
 

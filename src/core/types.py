@@ -14,7 +14,8 @@ from generation_types import (
     SectionSpec,
 )
 from model import LLMRequest, LLMTask
-from prompting import PromptLanguage, RewriteRequest
+from prompts.base import PromptLanguage
+from prompts.rephrase import RewriteRequest
 
 __all__ = [
     "LLMTask",

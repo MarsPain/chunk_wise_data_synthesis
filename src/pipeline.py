@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 from chunking import split_document_into_chunks
 from fidelity import FidelityVerifier, NoOpVerifier
 from model import RewriteModel
-from prompting import RewriteRequest
-from tokenizer import Tokenizer, take_last_tokens
+from prompts.rephrase import RewriteRequest
+from tokenization import Tokenizer, take_last_tokens
 
 
 @dataclass(frozen=True)
