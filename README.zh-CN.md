@@ -71,6 +71,7 @@ tests/
 scripts/
   run_live_openai_pipeline.py             # live rephrase 脚本
   run_live_openai_generation_pipeline.py  # live generation 脚本
+  run_generation_ab_baseline.py           # one-shot vs chunk-wise 基线评测
 ```
 
 ## 环境准备
@@ -143,6 +144,24 @@ export LLM_API_KEY=your_key_here
 export RUN_LIVE_LLM_TESTS=1
 uv run python -m unittest tests.test_openai_backend_live -v
 ```
+
+## A/B 基线评测（One-shot vs Chunk-wise）
+
+使用固定评测集生成可复现的基线报告：
+
+```bash
+export LLM_API_KEY=your_key_here
+uv run python scripts/run_generation_ab_baseline.py \
+  --cases tests/fixtures/generation_eval_cases.json \
+  --output-dir tests/data/ab_eval_reports \
+  --prompt-language en
+```
+
+输出文件：
+
+- `ab_baseline_report.json`：机器可读的汇总与逐 case 结果
+- `ab_baseline_report.md`：人工可读汇总与手工评分表
+- `<case_id>.json`：单 case 原始输出与指标明细
 
 ## 公共导入入口
 

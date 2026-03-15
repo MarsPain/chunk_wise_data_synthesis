@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from . import base, fidelity, generation
+from . import base, evaluation, fidelity, generation
+from .evaluation import (
+    ABComparison,
+    CoherenceMetrics,
+    compare_chunked_vs_one_shot,
+    evaluate_generation_coherence,
+)
 from .fidelity import (
     CompositeFidelityVerifier,
     FidelityVerifier,
@@ -23,8 +29,13 @@ NumericFactChecker = GenerationNumericFactChecker
 
 __all__ = [
     "base",
+    "evaluation",
     "fidelity",
     "generation",
+    "CoherenceMetrics",
+    "ABComparison",
+    "evaluate_generation_coherence",
+    "compare_chunked_vs_one_shot",
     "FidelityVerifier",
     "NoOpVerifier",
     "TokenJaccardVerifier",

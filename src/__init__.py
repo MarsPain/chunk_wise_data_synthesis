@@ -40,6 +40,8 @@ from prompts import (
     render_section_repair_prompt,
 )
 from quality import (
+    ABComparison,
+    CoherenceMetrics,
     CompositeFidelityVerifier,
     EntityPresenceChecker,
     FidelityNumericFactChecker,
@@ -53,6 +55,8 @@ from quality import (
     StrictConsistencyEditGuard,
     TerminologyConsistencyChecker,
     TokenJaccardVerifier,
+    compare_chunked_vs_one_shot,
+    evaluate_generation_coherence,
 )
 from tokenization import Tokenizer, WhitespaceTokenizer, take_last_tokens
 
@@ -93,6 +97,10 @@ __all__ = [
     "NumericFact",
     "FidelityNumericFactChecker",
     "CompositeFidelityVerifier",
+    "CoherenceMetrics",
+    "ABComparison",
+    "evaluate_generation_coherence",
+    "compare_chunked_vs_one_shot",
     "EntityPresenceChecker",
     "GenerationNumericFactChecker",
     "NumericFactChecker",

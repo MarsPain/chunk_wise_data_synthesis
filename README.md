@@ -71,6 +71,7 @@ tests/
 scripts/
   run_live_openai_pipeline.py             # live rephrase runner
   run_live_openai_generation_pipeline.py  # live generation runner
+  run_generation_ab_baseline.py           # one-shot vs chunk-wise baseline evaluation
 ```
 
 ## Setup
@@ -143,6 +144,24 @@ export LLM_API_KEY=your_key_here
 export RUN_LIVE_LLM_TESTS=1
 uv run python -m unittest tests.test_openai_backend_live -v
 ```
+
+## A/B Baseline Evaluation (One-shot vs Chunk-wise)
+
+Use the fixed cases file to build a reproducible baseline report:
+
+```bash
+export LLM_API_KEY=your_key_here
+uv run python scripts/run_generation_ab_baseline.py \
+  --cases tests/fixtures/generation_eval_cases.json \
+  --output-dir tests/data/ab_eval_reports \
+  --prompt-language en
+```
+
+Outputs:
+
+- `ab_baseline_report.json`: machine-readable aggregate + per-case details
+- `ab_baseline_report.md`: human-readable summary + manual scoring table
+- `<case_id>.json`: per-case raw outputs and metrics
 
 ## Public Import Entry Points
 

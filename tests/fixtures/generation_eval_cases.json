@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "id": "en-ml-guide-001",
+      "topic": "Chunk-wise autoregressive long-form generation",
+      "objective": "Write a practical engineering guide for improving full-document coherence",
+      "target_tokens": 1400,
+      "audience": "ML engineers",
+      "tone": "neutral technical"
+    },
+    {
+      "id": "en-system-design-001",
+      "topic": "Distributed inference service design",
+      "objective": "Produce an end-to-end system design note with trade-offs and rollout guidance",
+      "target_tokens": 1600,
+      "audience": "backend engineers",
+      "tone": "analytical"
+    },
+    {
+      "id": "zh-technical-note-001",
+      "topic": "分章节长文生成的一致性优化",
+      "objective": "产出一篇可落地的工程方案说明，重点提升整篇连贯性",
+      "target_tokens": 1400,
+      "audience": "算法工程师",
+      "tone": "中性技术"
+    }
+  ]
+}
