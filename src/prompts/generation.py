@@ -276,6 +276,12 @@ def render_section_prompt_compressed(
     progress = f"{len(state.covered_key_points)}/{total_points}"
     recent_entities = state.known_entities[-config.max_entities_in_prompt:] if state.known_entities else []
     recent_timeline = state.timeline[-config.max_timeline_entries:] if state.timeline else []
+    remaining_lookup = {point.lower() for point in state.remaining_key_points}
+    section_remaining_points = [
+        point for point in section_spec.key_points if point.lower() in remaining_lookup
+    ]
+    if not section_remaining_points:
+        section_remaining_points = list(section_spec.key_points)
 
     incremental_state = {
         "known_entities": recent_entities,
@@ -283,7 +289,7 @@ def render_section_prompt_compressed(
         "timeline": recent_timeline,
         "progress": progress,
         "covered_summary": covered_summary,
-        "remaining_points": state.remaining_key_points,
+        "remaining_points": section_remaining_points,
     }
 
     if language == "zh":
@@ -294,7 +300,7 @@ def render_section_prompt_compressed(
                 "规则：",
                 "1) 严格遵循当前章节规格。",
                 "2) 术语需与已知实体保持一致。",
-                "3) 覆盖下方列出的全部剩余要点。",
+                "3) 覆盖下方列出的当前章节剩余要点。",
                 "4) 不要重复 covered summary 中已覆盖内容。",
                 "5) 保持与后续章节衔接。",
                 "",
@@ -315,7 +321,7 @@ def render_section_prompt_compressed(
             "Rules:",
             "1) Follow the current section spec strictly.",
             "2) Keep terminology consistent with known entities.",
-            "3) Cover all remaining points listed below.",
+            "3) Cover this section's remaining points listed below.",
             "4) Do not repeat content summarized in covered summary.",
             "5) Maintain coherence with upcoming sections.",
             "",

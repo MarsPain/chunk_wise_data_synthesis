@@ -168,10 +168,10 @@ class CompressedPromptTests(unittest.TestCase):
         self.assertNotIn("Covered point 5", prompt)
 
     def test_compressed_prompt_includes_only_remaining_points(self) -> None:
-        """Compressed prompt should include only remaining key points."""
+        """Compressed prompt should include only current section remaining points."""
         plan = self._create_test_plan()
-        covered = ["Already covered"]
-        remaining = ["Still need this", "And this too"]
+        covered = ["Background"]
+        remaining = ["Problem statement", "Attention mechanism", "Vision tasks"]
         state = self._create_test_state(covered, remaining)
         current_section = plan.sections[0]
 
@@ -183,9 +183,13 @@ class CompressedPromptTests(unittest.TestCase):
             section_index=0,
         )
 
-        # Should include remaining points
-        self.assertIn("Still need this", prompt)
-        self.assertIn("And this too", prompt)
+        # Should include current section unresolved key point
+        self.assertIn("Problem statement", prompt)
+        # Should not include future sections' points in current section obligations
+        self.assertNotIn("Attention mechanism", prompt)
+        self.assertNotIn("Vision tasks", prompt)
+        # Instruction should scope to current section only
+        self.assertIn("Cover this section's remaining points", prompt)
 
     def test_compressed_prompt_has_progress_indicator(self) -> None:
         """Compressed prompt should include progress indicator."""
