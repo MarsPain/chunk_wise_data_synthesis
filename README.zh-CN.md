@@ -135,6 +135,16 @@ uv run python scripts/run_live_openai_generation_pipeline.py \
   --output tests/data/generation_output.txt
 ```
 
+也可用 profile 快速切换策略（默认 `coherence_first`）：
+
+```bash
+uv run python scripts/run_live_openai_generation_pipeline.py \
+  --topic "Chunk-wise autoregressive long-form generation" \
+  --objective "Create long-context training text" \
+  --profile cost_first \
+  --output tests/data/generation_output_cost_first.txt
+```
+
 ## Live 集成测试（默认不启用）
 
 live 集成测试会发起真实 API 请求，默认跳过：
@@ -295,8 +305,13 @@ print(result.qc_report.coverage_missing)
 - `--tone`
 - `--prompt-language`（`en` / `zh`）
 - `--manual-plan-path`
+- `--profile`（`coherence_first` / `cost_first`）
+- `--prompt-compression`（`on` / `off`）- 覆盖 profile 默认值
+- `--section-retry-strategy`（`off` / `balanced` / `aggressive`）- 覆盖 profile 默认值
+- `--consistency-pass`（`on` / `off`）- 覆盖 profile 默认值
+- `--consistency-guard`（`on` / `off`）- 覆盖 profile 默认值
 - `--prefix-window-tokens`
-- `--disable-consistency-pass`
+- `--disable-consistency-pass`（已弃用，等价于 `--consistency-pass off`）
 - `--enable-reasoning`
 - `--model`
 - `--base-url`

@@ -187,6 +187,30 @@ class GenerationPipelineTests(unittest.TestCase):
         self.assertIn("global anchor", result.final_text)
         self.assertIn("state table", result.final_text)
 
+    def test_consistency_guard_can_be_disabled(self) -> None:
+        plan = _build_manual_plan()
+        rewritten = "This recipe discusses tomatoes and basil unrelated to generation."
+        model = ScriptedLLMModel(
+            scripted_outputs=[
+                "The global anchor sets scope and keeps constraints explicit.",
+                "The state table tracks entities and marks covered points.",
+                rewritten,
+            ]
+        )
+        pipeline = ChunkWiseGenerationPipeline(
+            model=model,
+            tokenizer=WhitespaceTokenizer(),
+            config=GenerationConfig(
+                prefix_window_tokens=20,
+                consistency_guard_enabled=False,
+            ),
+        )
+
+        result = pipeline.run(manual_plan=plan)
+
+        self.assertFalse(result.qc_report.consistency_pass_used_fallback)
+        self.assertEqual(result.final_text, rewritten)
+
     def test_prompt_language_zh_is_used_in_section_prompt(self) -> None:
         plan = _build_manual_plan()
         model = ScriptedLLMModel(

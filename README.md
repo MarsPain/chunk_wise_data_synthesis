@@ -135,6 +135,16 @@ uv run python scripts/run_live_openai_generation_pipeline.py \
   --output tests/data/generation_output.txt
 ```
 
+Profile-based quick switch (default is `coherence_first`):
+
+```bash
+uv run python scripts/run_live_openai_generation_pipeline.py \
+  --topic "Chunk-wise autoregressive long-form generation" \
+  --objective "Create long-context training text" \
+  --profile cost_first \
+  --output tests/data/generation_output_cost_first.txt
+```
+
 ## Live Integration Test (Opt-in)
 
 The live integration test makes a real API request and is disabled by default:
@@ -295,8 +305,13 @@ Live generation script flags (`scripts/run_live_openai_generation_pipeline.py`):
 - `--tone`
 - `--prompt-language` (`en` / `zh`)
 - `--manual-plan-path`
+- `--profile` (`coherence_first` / `cost_first`)
+- `--prompt-compression` (`on` / `off`) - override profile
+- `--section-retry-strategy` (`off` / `balanced` / `aggressive`) - override profile
+- `--consistency-pass` (`on` / `off`) - override profile
+- `--consistency-guard` (`on` / `off`) - override profile
 - `--prefix-window-tokens`
-- `--disable-consistency-pass`
+- `--disable-consistency-pass` (deprecated alias for `--consistency-pass off`)
 - `--enable-reasoning`
 - `--model`
 - `--base-url`

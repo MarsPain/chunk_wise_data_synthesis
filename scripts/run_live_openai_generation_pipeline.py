@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 import logging
 from pathlib import Path
@@ -18,6 +19,43 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 logger = logging.getLogger(__name__)
+
+PROFILE_PRESETS: dict[str, dict[str, Any]] = {
+    "coherence_first": {
+        "prompt_compression_enabled": False,
+        "consistency_pass_enabled": True,
+        "consistency_guard_enabled": True,
+        "consistency_guard_min_token_jaccard": 0.68,
+        "consistency_guard_min_length_ratio": 0.6,
+        "consistency_guard_max_length_ratio": 1.45,
+        "consistency_guard_max_added_sentences": 4,
+        "section_retry_strategy": "aggressive",
+    },
+    "cost_first": {
+        "prompt_compression_enabled": True,
+        "consistency_pass_enabled": False,
+        "consistency_guard_enabled": False,
+        "section_retry_strategy": "off",
+    },
+}
+
+SECTION_RETRY_PRESETS: dict[str, dict[str, Any]] = {
+    "off": {
+        "max_section_retries": 1,
+        "retry_on_missing_entities": False,
+        "retry_on_length_violation": False,
+    },
+    "balanced": {
+        "max_section_retries": 2,
+        "retry_on_missing_entities": True,
+        "retry_on_length_violation": False,
+    },
+    "aggressive": {
+        "max_section_retries": 3,
+        "retry_on_missing_entities": True,
+        "retry_on_length_violation": True,
+    },
+}
 
 
 def _ensure_src_on_path() -> None:
@@ -68,9 +106,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional JSON plan path. If provided, topic/objective fields are ignored.",
     )
     parser.add_argument(
+        "--profile",
+        type=str,
+        default="coherence_first",
+        choices=sorted(PROFILE_PRESETS.keys()),
+        help="Preset for generation strategy tuning.",
+    )
+    parser.add_argument(
+        "--prompt-compression",
+        type=str,
+        default=None,
+        choices=["on", "off"],
+        help="Toggle prompt compression explicitly (overrides profile).",
+    )
+    parser.add_argument(
+        "--section-retry-strategy",
+        type=str,
+        default=None,
+        choices=sorted(SECTION_RETRY_PRESETS.keys()),
+        help="Retry strategy for section generation (overrides profile).",
+    )
+    parser.add_argument(
+        "--consistency-pass",
+        type=str,
+        default=None,
+        choices=["on", "off"],
+        help="Toggle the final consistency pass explicitly (overrides profile).",
+    )
+    parser.add_argument(
+        "--consistency-guard",
+        type=str,
+        default=None,
+        choices=["on", "off"],
+        help="Toggle consistency guard explicitly (overrides profile).",
+    )
+    parser.add_argument(
         "--disable-consistency-pass",
         action="store_true",
-        help="Disable the final consistency pass.",
+        help="Deprecated alias for --consistency-pass=off.",
     )
     parser.add_argument(
         "--output",
@@ -100,6 +173,57 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_switch(raw_value: str | None, default_value: bool) -> bool:
+    if raw_value is None:
+        return default_value
+    return raw_value == "on"
+
+
+def resolve_generation_config(args: argparse.Namespace) -> tuple[GenerationConfig, dict[str, Any]]:
+    preset = dict(PROFILE_PRESETS[args.profile])
+    default_retry_strategy = str(preset.pop("section_retry_strategy", "balanced"))
+    retry_strategy = str(args.section_retry_strategy or default_retry_strategy)
+    retry_preset = SECTION_RETRY_PRESETS[retry_strategy]
+    preset.update(retry_preset)
+
+    consistency_pass_switch = args.consistency_pass
+    if args.disable_consistency_pass and consistency_pass_switch is None:
+        consistency_pass_switch = "off"
+
+    preset["prompt_compression_enabled"] = _resolve_switch(
+        args.prompt_compression,
+        bool(preset.get("prompt_compression_enabled", True)),
+    )
+    preset["consistency_pass_enabled"] = _resolve_switch(
+        consistency_pass_switch,
+        bool(preset.get("consistency_pass_enabled", True)),
+    )
+    preset["consistency_guard_enabled"] = _resolve_switch(
+        args.consistency_guard,
+        bool(preset.get("consistency_guard_enabled", True)),
+    )
+
+    if not preset["consistency_pass_enabled"]:
+        preset["consistency_guard_enabled"] = False
+
+    config = GenerationConfig(
+        prefix_window_tokens=args.prefix_window_tokens,
+        prompt_language=args.prompt_language,
+        **preset,
+    )
+    snapshot = {
+        "profile": args.profile,
+        "section_retry_strategy": retry_strategy,
+        "overrides": {
+            "prompt_compression": args.prompt_compression,
+            "consistency_pass": consistency_pass_switch,
+            "consistency_guard": args.consistency_guard,
+        },
+        "resolved_config": asdict(config),
+    }
+    return config, snapshot
+
+
 def main() -> None:
     args = build_parser().parse_args()
     setup_logging(verbose=args.verbose)
@@ -117,10 +241,10 @@ def main() -> None:
         )
     )
 
-    config = GenerationConfig(
-        prefix_window_tokens=args.prefix_window_tokens,
-        consistency_pass_enabled=not args.disable_consistency_pass,
-        prompt_language=args.prompt_language,
+    config, config_snapshot = resolve_generation_config(args)
+    logger.info(
+        "Generation config snapshot: %s",
+        json.dumps(config_snapshot, ensure_ascii=False, sort_keys=True),
     )
     pipeline = ChunkWiseGenerationPipeline(
         model=model,

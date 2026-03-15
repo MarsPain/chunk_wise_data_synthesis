@@ -307,6 +307,7 @@ class GenerationConfig:
     repetition_similarity_threshold: float = 0.92
     drift_overlap_threshold: float = 0.05
     consistency_pass_enabled: bool = True
+    consistency_guard_enabled: bool = True
     consistency_guard_min_token_jaccard: float = 0.75
     consistency_guard_min_length_ratio: float = 0.7
     consistency_guard_max_length_ratio: float = 1.3

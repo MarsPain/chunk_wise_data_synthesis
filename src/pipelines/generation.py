@@ -182,13 +182,26 @@ class ChunkWiseGenerationPipeline:
             candidate = self._model.generate(
                 LLMRequest(task="consistency_pass", prompt=consistency_prompt)
             )
-            final_text, used_fallback = self._consistency_guard.apply(
-                original_text=draft_text,
-                candidate_text=candidate,
-            )
+            if self._config.consistency_guard_enabled:
+                final_text, used_fallback = self._consistency_guard.apply(
+                    original_text=draft_text,
+                    candidate_text=candidate,
+                )
+            else:
+                stripped_candidate = candidate.strip()
+                if stripped_candidate:
+                    final_text = stripped_candidate
+                    used_fallback = False
+                else:
+                    final_text = draft_text
+                    used_fallback = True
+                    logger.warning(
+                        "[Pipeline] Consistency pass returned empty output, using draft text"
+                    )
             quality_report.consistency_pass_used_fallback = used_fallback
             if used_fallback:
-                logger.warning("[Pipeline] Consistency pass rejected, using draft text")
+                if self._config.consistency_guard_enabled:
+                    logger.warning("[Pipeline] Consistency pass rejected, using draft text")
             else:
                 logger.info("[Pipeline] Consistency pass applied successfully")
 
