@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from generation_types import GenerationConfig, GenerationPlan, GenerationState, QualityReport, SectionSpec
 from prompts.base import PromptLanguage, _none_text, _resolve_prompt_language
@@ -83,6 +84,7 @@ def render_section_prompt(
     recent_text: str,
     section_spec: SectionSpec,
     prompt_language: PromptLanguage = "en",
+    boundary_contract: dict[str, Any] | None = None,
 ) -> str:
     language = _resolve_prompt_language(prompt_language)
     plan_blob = json.dumps(plan.to_dict(), ensure_ascii=False)
@@ -97,6 +99,8 @@ def render_section_prompt(
         ensure_ascii=False,
     )
     section_blob = json.dumps(section_spec.to_dict(), ensure_ascii=False)
+    normalized_contract = _normalize_boundary_contract(boundary_contract)
+    contract_blob = json.dumps(normalized_contract, ensure_ascii=False)
 
     if language == "zh":
         return "\n\n".join(
@@ -107,7 +111,9 @@ def render_section_prompt(
                 "1) 严格遵循全局计划和当前章节规格。",
                 "2) 术语、实体与时间线需与当前状态保持一致。",
                 "3) 避免重复最近文本中已覆盖的要点。",
-                "4) 只输出当前章节正文，不要输出 JSON、markdown 或解释。",
+                "4) 必须执行章节边界契约字段：opening_bridge 与 closing_handoff。",
+                "5) opening_bridge 应体现在开头 1-2 句；closing_handoff 应体现在结尾 1-2 句。",
+                "6) 只输出当前章节正文，不要输出 JSON、markdown 或解释。",
                 "全局计划：",
                 plan_blob,
                 "当前状态：",
@@ -115,6 +121,8 @@ def render_section_prompt(
                 f"最近已生成文本：\n{recent_text or _none_text(language)}",
                 "当前章节规格：",
                 section_blob,
+                "章节边界契约：",
+                contract_blob,
                 "目标长度为近似值（允许 ±20%）。",
             ]
         )
@@ -127,7 +135,9 @@ def render_section_prompt(
             "1) Follow plan and current section spec strictly.",
             "2) Keep terminology, entities, and timeline consistent with state.",
             "3) Avoid repeating points already covered in recent text.",
-            "4) Output only the current section body text - no JSON, no markdown, no explanations.",
+            "4) Enforce boundary contract fields: opening_bridge and closing_handoff.",
+            "5) opening_bridge must appear in the first 1-2 sentences; closing_handoff in the final 1-2 sentences.",
+            "6) Output only the current section body text - no JSON, no markdown, no explanations.",
             "Global plan:",
             plan_blob,
             "Current state:",
@@ -135,6 +145,8 @@ def render_section_prompt(
             f"Recent generated text:\n{recent_text or _none_text(language)}",
             "Current section spec:",
             section_blob,
+            "Boundary contract:",
+            contract_blob,
             "Target length is approximate (allow +/-20%).",
         ]
     )
@@ -247,6 +259,7 @@ def render_section_prompt_compressed(
     section_index: int,
     config: GenerationConfig | None = None,
     prompt_language: PromptLanguage = "en",
+    boundary_contract: dict[str, Any] | None = None,
 ) -> str:
     """Render a compressed section prompt with minimal context injection."""
     language = _resolve_prompt_language(prompt_language)
@@ -291,6 +304,7 @@ def render_section_prompt_compressed(
         "covered_summary": covered_summary,
         "remaining_points": section_remaining_points,
     }
+    normalized_contract = _normalize_boundary_contract(boundary_contract)
 
     if language == "zh":
         return "\n\n".join(
@@ -302,11 +316,15 @@ def render_section_prompt_compressed(
                 "2) 术语需与已知实体保持一致。",
                 "3) 覆盖下方列出的当前章节剩余要点。",
                 "4) 不要重复 covered summary 中已覆盖内容。",
-                "5) 保持与后续章节衔接。",
+                "5) 严格执行边界契约字段 opening_bridge 与 closing_handoff。",
+                "6) opening_bridge 体现在开头 1-2 句，closing_handoff 体现在结尾 1-2 句。",
+                "7) 保持与后续章节衔接。",
                 "",
                 f"计划上下文：\n{json.dumps(plan_context, ensure_ascii=False, indent=2)}",
                 "",
                 f"增量状态（进度: {progress}）：\n{json.dumps(incremental_state, ensure_ascii=False, indent=2)}",
+                "",
+                f"章节边界契约：\n{json.dumps(normalized_contract, ensure_ascii=False, indent=2)}",
                 "",
                 f"最近已生成文本：\n{recent_text or _none_text(language)}",
                 "",
@@ -323,11 +341,15 @@ def render_section_prompt_compressed(
             "2) Keep terminology consistent with known entities.",
             "3) Cover this section's remaining points listed below.",
             "4) Do not repeat content summarized in covered summary.",
-            "5) Maintain coherence with upcoming sections.",
+            "5) Enforce boundary contract fields: opening_bridge and closing_handoff.",
+            "6) opening_bridge belongs in the first 1-2 sentences; closing_handoff in the final 1-2 sentences.",
+            "7) Maintain coherence with upcoming sections.",
             "",
             f"Plan context:\n{json.dumps(plan_context, ensure_ascii=False, indent=2)}",
             "",
             f"Incremental state (progress: {progress}):\n{json.dumps(incremental_state, ensure_ascii=False, indent=2)}",
+            "",
+            f"Boundary contract:\n{json.dumps(normalized_contract, ensure_ascii=False, indent=2)}",
             "",
             f"Recent generated text:\n{recent_text or _none_text(language)}",
             "",
@@ -347,6 +369,7 @@ def render_section_repair_prompt(
     retry_index: int,
     original_prompt: str = "",
     prompt_language: PromptLanguage = "en",
+    boundary_contract: dict[str, Any] | None = None,
 ) -> str:
     """Generate a repair prompt targeting specific quality issues."""
     del plan
@@ -362,6 +385,7 @@ def render_section_repair_prompt(
     ]
     other_issues = [i for i in quality_issues if i not in entity_issues + length_issues + repetition_issues]
     specific_guidance: list[str] = []
+    normalized_contract = _normalize_boundary_contract(boundary_contract)
 
     if language == "zh":
         if entity_issues:
@@ -445,6 +469,9 @@ def render_section_repair_prompt(
             "",
             "必需实体（必须包含）：",
             *[f"  - {entity}" for entity in section_spec.required_entities],
+            "",
+            "章节边界契约（必须保持）：",
+            json.dumps(normalized_contract, ensure_ascii=False),
         ]
         if section_spec.constraints:
             sections.extend(
@@ -465,8 +492,9 @@ def render_section_repair_prompt(
                 "2) 与已覆盖内容保持一致：",
                 f"   已覆盖要点：{state.covered_key_points}",
                 f"   已知实体：{state.known_entities}",
-                "3) 尽量保留原始含义和结构",
-                "4) 只输出修订后的章节正文，不要解释，不要 markdown",
+                "3) opening_bridge 必须体现在开头 1-2 句，closing_handoff 必须体现在结尾 1-2 句",
+                "4) 尽量保留原始含义和结构",
+                "5) 只输出修订后的章节正文，不要解释，不要 markdown",
                 "",
                 "关键要求：输出会被直接使用，请不要包含：",
                 "- 思考或规划文本",
@@ -560,6 +588,9 @@ def render_section_repair_prompt(
         "",
         "Required entities (MUST include):",
         *[f"  - {entity}" for entity in section_spec.required_entities],
+        "",
+        "Boundary contract (MUST preserve):",
+        json.dumps(normalized_contract, ensure_ascii=False),
     ]
     if section_spec.constraints:
         sections.extend(
@@ -580,8 +611,9 @@ def render_section_repair_prompt(
             "2) Maintain consistency with already-covered content:",
             f"   Covered key points: {state.covered_key_points}",
             f"   Known entities: {state.known_entities}",
-            "3) Preserve the original meaning and structure where possible",
-            "4) Output ONLY the revised section text - no explanations, no markdown",
+            "3) opening_bridge must be reflected in the first 1-2 sentences; closing_handoff in the final 1-2 sentences",
+            "4) Preserve the original meaning and structure where possible",
+            "5) Output ONLY the revised section text - no explanations, no markdown",
             "",
             "CRITICAL: Your output will be used directly. Do not include:",
             "- Thinking or planning text",
@@ -593,3 +625,17 @@ def render_section_repair_prompt(
         ]
     )
     return "\n".join(sections)
+
+
+def _normalize_boundary_contract(boundary_contract: dict[str, Any] | None) -> dict[str, Any]:
+    normalized: dict[str, Any] = {
+        "opening_bridge": "",
+        "closing_handoff": "",
+    }
+    if not boundary_contract:
+        return normalized
+
+    normalized.update(boundary_contract)
+    normalized["opening_bridge"] = str(normalized.get("opening_bridge", "")).strip()
+    normalized["closing_handoff"] = str(normalized.get("closing_handoff", "")).strip()
+    return normalized

@@ -27,6 +27,7 @@ from quality.generation import (
     RepetitionAndDriftChecker,
     StrictConsistencyEditGuard,
     TerminologyConsistencyChecker,
+    TransitionContractChecker,
     _token_jaccard as token_jaccard_helper,
 )
 from tokenization import Tokenizer, take_last_tokens
@@ -52,6 +53,7 @@ class ChunkWiseGenerationPipeline:
             repetition_threshold=self._config.repetition_similarity_threshold,
             drift_overlap_threshold=self._config.drift_overlap_threshold,
         )
+        self._transition_checker = TransitionContractChecker()
         self._consistency_guard = StrictConsistencyEditGuard(
             min_token_jaccard=self._config.consistency_guard_min_token_jaccard,
             min_length_ratio=self._config.consistency_guard_min_length_ratio,
@@ -158,6 +160,9 @@ class ChunkWiseGenerationPipeline:
         )
         quality_report.repetition_issues = repetition_issues
         quality_report.drift_issues = drift_issues
+        quality_report.section_warnings.extend(
+            self._transition_checker.find_missing(section_outputs=section_outputs)
+        )
         logger.info(
             f"[Pipeline] Quality check: missing={len(quality_report.coverage_missing)}, "
             f"terminology={len(quality_report.terminology_issues)}, "
@@ -294,6 +299,50 @@ class ChunkWiseGenerationPipeline:
                 parts.append(entity)
         return " ".join(parts).strip()
 
+    def _build_boundary_contract(
+        self,
+        plan: GenerationPlan,
+        section_index: int,
+    ) -> dict[str, object]:
+        previous_section = plan.sections[section_index - 1] if section_index > 0 else None
+        next_section = (
+            plan.sections[section_index + 1]
+            if section_index < len(plan.sections) - 1
+            else None
+        )
+        section = plan.sections[section_index]
+
+        if previous_section is None:
+            opening_bridge = "Open this section by anchoring the article's central objective."
+            opening_anchor_terms = [plan.topic, plan.objective]
+        else:
+            opening_bridge = (
+                f"In the first 1-2 sentences, explicitly connect from previous section "
+                f"'{previous_section.title}'."
+            )
+            opening_anchor_terms = [
+                *previous_section.key_points,
+                *previous_section.required_entities,
+            ]
+
+        if next_section is None:
+            closing_handoff = (
+                "In the final 1-2 sentences, synthesize this section and close the article."
+            )
+            closing_anchor_terms = [section.title]
+        else:
+            closing_handoff = (
+                f"In the final 1-2 sentences, hand off to next section '{next_section.title}'."
+            )
+            closing_anchor_terms = [*next_section.key_points, *next_section.required_entities]
+
+        return {
+            "opening_bridge": opening_bridge,
+            "opening_anchor_terms": opening_anchor_terms[:3],
+            "closing_handoff": closing_handoff,
+            "closing_anchor_terms": closing_anchor_terms[:3],
+        }
+
     def _check_length(self, section: SectionSpec, section_text: str) -> str:
         token_count = len(self._tokenizer.encode(section_text))
         lower_bound = max(
@@ -351,6 +400,10 @@ class ChunkWiseGenerationPipeline:
         best_text = ""
         best_score = -1.0
         all_issues: list[str] = []
+        boundary_contract = self._build_boundary_contract(
+            plan=plan,
+            section_index=section_index,
+        )
 
         retry_limit = max(self._config.max_section_retries, 1)
 
@@ -371,6 +424,7 @@ class ChunkWiseGenerationPipeline:
                         section_index=section_index,
                         config=self._config,
                         prompt_language=self._config.prompt_language,
+                        boundary_contract=boundary_contract,
                     )
                 else:
                     prompt = render_section_prompt(
@@ -379,6 +433,7 @@ class ChunkWiseGenerationPipeline:
                         recent_text=generated_prefix,
                         section_spec=section,
                         prompt_language=self._config.prompt_language,
+                        boundary_contract=boundary_contract,
                     )
             else:
                 prompt = render_section_repair_prompt(
@@ -389,6 +444,7 @@ class ChunkWiseGenerationPipeline:
                     quality_issues=all_issues,
                     retry_index=retry,
                     prompt_language=self._config.prompt_language,
+                    boundary_contract=boundary_contract,
                 )
 
             section_text = self._model.generate(

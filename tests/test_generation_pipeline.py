@@ -234,6 +234,55 @@ class GenerationPipelineTests(unittest.TestCase):
         first_section_prompt = model.calls[0].request.prompt
         self.assertIn("你正在生成一篇长文中的一个章节。", first_section_prompt)
 
+    def test_quality_report_adds_transition_contract_warnings(self) -> None:
+        plan = GenerationPlan(
+            topic="Boundary coherence",
+            objective="check transitions",
+            audience="engineers",
+            tone="neutral",
+            target_total_length=300,
+            sections=[
+                SectionSpec(
+                    title="Section A",
+                    key_points=["A point"],
+                    required_entities=[],
+                    constraints=[],
+                    target_length=120,
+                ),
+                SectionSpec(
+                    title="Section B",
+                    key_points=["B point"],
+                    required_entities=[],
+                    constraints=[],
+                    target_length=120,
+                ),
+            ],
+            terminology_preferences={},
+            narrative_voice="third-person",
+            do_not_include=[],
+        )
+        model = ScriptedLLMModel(
+            scripted_outputs=[
+                "Section A explains chunk boundaries and state snapshots.",
+                "The history of cooking uses basil and oven timing.",
+                (
+                    "Section A explains chunk boundaries and state snapshots. "
+                    "The history of cooking uses basil and oven timing."
+                ),
+            ]
+        )
+        pipeline = ChunkWiseGenerationPipeline(
+            model=model,
+            tokenizer=WhitespaceTokenizer(),
+            config=GenerationConfig(prefix_window_tokens=20, max_section_retries=1),
+        )
+
+        result = pipeline.run(manual_plan=plan)
+
+        self.assertTrue(
+            any("opening bridge" in warning.lower() for warning in result.qc_report.section_warnings)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -156,6 +156,91 @@ class RepetitionAndDriftChecker:
         return repetition_issues, drift_issues
 
 
+class TransitionContractChecker:
+    """Heuristic checker for missing section boundary transitions."""
+
+    def __init__(
+        self,
+        boundary_window_words: int = 36,
+        min_overlap_for_implicit_transition: float = 0.08,
+    ) -> None:
+        self._boundary_window_words = boundary_window_words
+        self._min_overlap_for_implicit_transition = min_overlap_for_implicit_transition
+        self._opening_markers = (
+            "building on",
+            "continuing from",
+            "as discussed",
+            "based on",
+            "in this context",
+            "承接",
+            "在此基础上",
+            "延续上节",
+            "接着",
+        )
+        self._closing_markers = (
+            "in the next section",
+            "next section",
+            "we now turn to",
+            "later section",
+            "to be discussed next",
+            "下一节",
+            "接下来",
+            "随后",
+            "后文",
+        )
+
+    def find_missing(self, section_outputs: list[str]) -> list[str]:
+        warnings: list[str] = []
+        for idx in range(1, len(section_outputs)):
+            previous = section_outputs[idx - 1].strip()
+            current = section_outputs[idx].strip()
+            if not previous or not current:
+                continue
+
+            previous_tail = self._window(previous, from_end=True)
+            current_head = self._window(current, from_end=False)
+            overlap = _token_jaccard(previous_tail, current_head)
+            opening_ok = self._has_opening_bridge(current_head) or (
+                overlap >= self._min_overlap_for_implicit_transition
+            )
+            closing_ok = self._has_closing_handoff(previous_tail) or (
+                overlap >= self._min_overlap_for_implicit_transition
+            )
+
+            if not opening_ok:
+                warnings.append(
+                    (
+                        f"Section {idx + 1} may be missing opening bridge from section {idx} "
+                        f"(boundary overlap={overlap:.2f})."
+                    )
+                )
+            if not closing_ok:
+                warnings.append(
+                    (
+                        f"Section {idx} may be missing closing handoff to section {idx + 1} "
+                        f"(boundary overlap={overlap:.2f})."
+                    )
+                )
+
+        return warnings
+
+    def _window(self, text: str, from_end: bool) -> str:
+        words = text.split()
+        if len(words) <= self._boundary_window_words:
+            return text
+        if from_end:
+            return " ".join(words[-self._boundary_window_words:])
+        return " ".join(words[: self._boundary_window_words])
+
+    def _has_opening_bridge(self, text: str) -> bool:
+        lowered = text.lower()
+        return any(marker in lowered for marker in self._opening_markers)
+
+    def _has_closing_handoff(self, text: str) -> bool:
+        lowered = text.lower()
+        return any(marker in lowered for marker in self._closing_markers)
+
+
 @dataclass(frozen=True)
 class StrictConsistencyEditGuard:
     min_token_jaccard: float = 0.75
@@ -200,5 +285,6 @@ __all__ = [
     "OutlineCoverageChecker",
     "TerminologyConsistencyChecker",
     "RepetitionAndDriftChecker",
+    "TransitionContractChecker",
     "StrictConsistencyEditGuard",
 ]

@@ -111,6 +111,44 @@ class GenerationPromptLanguageTests(unittest.TestCase):
         )
         self.assertIn("你正在修订一个已生成章节以修复质量问题。", prompt)
 
+    def test_section_prompt_includes_boundary_contract_fields(self) -> None:
+        prompt = render_section_prompt(
+            plan=_build_plan(),
+            state=_build_state(),
+            recent_text="上一节末尾提到实体A。",
+            section_spec=_build_plan().sections[0],
+            boundary_contract={
+                "opening_bridge": "首句承接上一节中的实体A。",
+                "closing_handoff": "末句引出下一节的问题空间。",
+            },
+            prompt_language="zh",
+        )
+
+        self.assertIn("opening_bridge", prompt)
+        self.assertIn("closing_handoff", prompt)
+        self.assertIn("首句承接上一节中的实体A。", prompt)
+        self.assertIn("末句引出下一节的问题空间。", prompt)
+
+    def test_repair_prompt_includes_boundary_contract_fields(self) -> None:
+        prompt = render_section_repair_prompt(
+            plan=_build_plan(),
+            state=_build_state(),
+            section_spec=_build_plan().sections[0],
+            current_text="当前文本",
+            quality_issues=["Section transition feels abrupt."],
+            retry_index=1,
+            boundary_contract={
+                "opening_bridge": "首句需要承接上一节结论。",
+                "closing_handoff": "末句需要引出下一节方法。",
+            },
+            prompt_language="zh",
+        )
+
+        self.assertIn("opening_bridge", prompt)
+        self.assertIn("closing_handoff", prompt)
+        self.assertIn("首句需要承接上一节结论。", prompt)
+        self.assertIn("末句需要引出下一节方法。", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

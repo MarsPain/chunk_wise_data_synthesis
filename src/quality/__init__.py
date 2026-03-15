@@ -22,6 +22,7 @@ from .generation import (
     RepetitionAndDriftChecker,
     StrictConsistencyEditGuard,
     TerminologyConsistencyChecker,
+    TransitionContractChecker,
 )
 
 # Keep the short alias for compatibility with previous generation_quality usage.
@@ -48,5 +49,6 @@ __all__ = [
     "OutlineCoverageChecker",
     "TerminologyConsistencyChecker",
     "RepetitionAndDriftChecker",
+    "TransitionContractChecker",
     "StrictConsistencyEditGuard",
 ]

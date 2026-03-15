@@ -11,6 +11,7 @@ from quality.generation import (
     RepetitionAndDriftChecker,
     StrictConsistencyEditGuard,
     TerminologyConsistencyChecker,
+    TransitionContractChecker,
 )
 from generation_types import GenerationPlan, SectionSpec
 
@@ -275,6 +276,43 @@ class NumericFactCheckerTests(unittest.TestCase):
         issues = checker.find_missing(source, generated)
 
         self.assertEqual(len(issues), 1)
+
+
+class TransitionContractCheckerTests(unittest.TestCase):
+    def test_reports_missing_opening_bridge_and_closing_handoff(self) -> None:
+        checker = TransitionContractChecker()
+        warnings = checker.find_missing(
+            section_outputs=[
+                "Chunk-wise generation uses a planning stage to shape sections.",
+                "Tomato soup uses basil and olive oil for richer flavor.",
+            ]
+        )
+
+        self.assertTrue(
+            any("opening bridge" in warning.lower() for warning in warnings),
+            f"Expected opening bridge warning, got: {warnings}",
+        )
+        self.assertTrue(
+            any("closing handoff" in warning.lower() for warning in warnings),
+            f"Expected closing handoff warning, got: {warnings}",
+        )
+
+    def test_accepts_boundary_when_transition_cues_exist(self) -> None:
+        checker = TransitionContractChecker()
+        warnings = checker.find_missing(
+            section_outputs=[
+                (
+                    "Chunk-wise generation starts with a planning stage. "
+                    "In the next section, we move to execution details."
+                ),
+                (
+                    "Building on the planning stage, this section explains execution "
+                    "and state updates in detail."
+                ),
+            ]
+        )
+
+        self.assertEqual(warnings, [])
 
 
 if __name__ == "__main__":
